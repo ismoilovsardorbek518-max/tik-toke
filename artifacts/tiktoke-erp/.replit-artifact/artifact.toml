@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "TIK TOKE ERP"
+version = "1.0.0"
+id = "artifacts/tiktoke-erp"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25740
+
+[services.development]
+run = "pnpm --filter @workspace/tiktoke-erp run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tiktoke-erp", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/tiktoke-erp/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25740"
+BASE_PATH = "/"
