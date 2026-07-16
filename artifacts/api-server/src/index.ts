@@ -22,4 +22,17 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Render.com bepul tier'da server 15 daqiqa so'rovsiz "uxlaydi".
+  // Har 5 daqiqada o'ziga so'rov yuborib uxlamasligini ta'minlaymiz.
+  const selfUrl = process.env["RENDER_EXTERNAL_URL"];
+  if (selfUrl) {
+    const pingUrl = `${selfUrl}/api/healthz`;
+    setInterval(() => {
+      fetch(pingUrl).catch(() => {
+        // Jimgina o'tib ketadi — admin interfeysiga ta'sir qilmaydi
+      });
+    }, 5 * 60 * 1000); // 5 daqiqa
+    logger.info({ pingUrl }, "Self-ping started (every 5 min)");
+  }
 });
