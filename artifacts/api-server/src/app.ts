@@ -43,7 +43,7 @@ if (process.env.NODE_ENV === "production") {
   if (fs.existsSync(staticDir)) {
     app.use(express.static(staticDir));
     // SPA fallback — barcha notopilgan route'lar uchun index.html
-    app.get("*", (_req, res) => {
+    app.get("/{*path}", (_req, res) => {
       res.sendFile(path.join(staticDir, "index.html"));
     });
   }
