@@ -1,3 +1,4 @@
 - [ERP architecture](erp-arch.md) — custom apiFetch helper (not OpenAPI client); stock = receipts/productions − deliveries/usage + adjustments; drizzle-kit push works with echo "y" | ...
 - [Orphaned files pattern](orphaned-files.md) — abandoned feature files (routes/pages/schema) left unwired from router/App; always check barrel/index before trusting a file is live; delete if they break tsc
 - [DB rebuild required](db-rebuild.md) — after schema changes, must run `pnpm --filter @workspace/db exec tsc -b --force` before api-server tsc or it reports missing columns
+- [Vite proxy required](vite-proxy.md) — Vite dev server must proxy /api to port 8080 (Express); without it browser fetches hit Vite and fail; also need schema pushed + admin user seeded before first login
