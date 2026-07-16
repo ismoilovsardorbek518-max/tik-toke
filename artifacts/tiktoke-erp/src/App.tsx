@@ -20,6 +20,7 @@ import Suppliers from '@/pages/Suppliers';
 import Units from '@/pages/Units';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
+import Adjustments from '@/pages/Adjustments';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -54,6 +55,7 @@ const ProtectedSuppliers    = () => <ProtectedRoute component={Suppliers} />;
 const ProtectedUnits        = () => <ProtectedRoute component={Units} />;
 const ProtectedReports      = () => <ProtectedRoute component={Reports} />;
 const ProtectedSettings     = () => <ProtectedRoute component={Settings} />;
+const ProtectedAdjustments  = () => <ProtectedRoute component={Adjustments} />;
 
 function Router() {
   return (
@@ -69,6 +71,7 @@ function Router() {
       <Route path="/suppliers" component={ProtectedSuppliers} />
       <Route path="/units" component={ProtectedUnits} />
       <Route path="/reports" component={ProtectedReports} />
+      <Route path="/adjustments" component={ProtectedAdjustments} />
       <Route path="/settings" component={ProtectedSettings} />
       <Route component={NotFound} />
     </Switch>

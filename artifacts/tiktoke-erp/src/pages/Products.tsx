@@ -18,7 +18,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, Box } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Box, Download } from "lucide-react";
+import { exportXlsx } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface Product {
@@ -87,9 +88,18 @@ export default function Products() {
           <h1 className="text-2xl font-bold">Mahsulotlar</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{products.length} ta tayyor mahsulot</p>
         </div>
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="w-4 h-4" /> Yangi qo'shish
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportXlsx(
+            filtered.map((p) => ({
+              "Kod": p.code || "", "Nomi": p.name, "Birlik": p.unitName || "",
+              "Narxi (so'm)": p.sellingPrice, "Qoldiq": p.stock,
+            })), `mahsulotlar-${new Date().toISOString().split("T")[0]}.xlsx`)}>
+            <Download className="w-4 h-4" /> Excel
+          </Button>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="w-4 h-4" /> Yangi qo'shish
+          </Button>
+        </div>
       </div>
 
       <div className="relative max-w-sm">

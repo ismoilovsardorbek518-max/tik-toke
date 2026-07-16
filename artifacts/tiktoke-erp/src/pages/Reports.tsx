@@ -39,6 +39,15 @@ interface ProfitReport {
   totals: { revenue: string; cost: string; profit: string };
 }
 
+interface PlanRow {
+  productId: number; productName: string | null; unitShort: string | null;
+  avgWeeklySales: string; currentStock: string; recommendedProduction: string;
+}
+interface RmNeedRow {
+  rawMaterialId: number; rawMaterialName: string | null; unitShort: string | null; neededQty: string;
+}
+interface ProductionPlan { weeks: number; startDate: string; endDate: string; planRows: PlanRow[]; rmNeeds: RmNeedRow[]; }
+
 interface RM { id: number; name: string; }
 interface Product { id: number; name: string; }
 interface Customer { id: number; name: string; }
@@ -58,6 +67,9 @@ export default function Reports() {
   // Delivery filters
   const [customerFilter, setCustomerFilter] = useState("all");
   const [delivProdFilter, setDelivProdFilter] = useState("all");
+
+  // Production plan
+  const [planWeeks, setPlanWeeks] = useState("4");
 
   // Reference data
   const { data: rawMaterials = [] } = useQuery<RM[]>({ queryKey: ["raw-materials"], queryFn: () => apiFetch("/raw-materials") });
@@ -95,6 +107,11 @@ export default function Reports() {
   const { data: profitReport, isLoading: profitLoading } = useQuery<ProfitReport>({
     queryKey: ["report-profit", startDate, endDate],
     queryFn: () => apiFetch(`/reports/profit?startDate=${startDate}&endDate=${endDate}`),
+  });
+
+  const { data: productionPlan, isLoading: planLoading } = useQuery<ProductionPlan>({
+    queryKey: ["report-plan", planWeeks],
+    queryFn: () => apiFetch(`/reports/production-plan?weeks=${planWeeks}`),
   });
   const profitRows = profitReport?.rows ?? [];
   const profitTotals = profitReport?.totals;
@@ -145,11 +162,12 @@ export default function Reports() {
       </div>
 
       <Tabs defaultValue="rm" className="w-full">
-        <TabsList className="grid grid-cols-4 w-[620px]">
+        <TabsList className="grid grid-cols-5 w-[780px]">
           <TabsTrigger value="rm">Hom ashyo kirim</TabsTrigger>
           <TabsTrigger value="prod">Ishlab chiqarish</TabsTrigger>
           <TabsTrigger value="deliv">Yuk chiqarish</TabsTrigger>
           <TabsTrigger value="profit">Foyda</TabsTrigger>
+          <TabsTrigger value="plan">📊 Haftalik reja</TabsTrigger>
         </TabsList>
 
         {/* ─── Hom ashyo kirim ─── */}
@@ -528,6 +546,119 @@ export default function Reports() {
           </div>
           <p className="text-xs text-muted-foreground">
             Foyda = tanlangan davrdagi yuk chiqarish (sotuv) tushumi − shu davrda ishlab chiqarilgan mahsulotning o'rtacha kirim narxiga asoslangan tannarx.
+          </p>
+        </TabsContent>
+
+        {/* ─── Haftalik ishlab chiqarish rejasi ─── */}
+        <TabsContent value="plan" className="mt-4 space-y-4">
+          <div className="flex flex-wrap gap-3 items-center bg-muted/30 rounded-lg p-3">
+            <Label className="text-sm font-medium">Tahlil davri:</Label>
+            {["1","2","4","8","12"].map((w) => (
+              <Button
+                key={w}
+                size="sm"
+                variant={planWeeks === w ? "default" : "outline"}
+                className="h-8 px-3 text-xs"
+                onClick={() => setPlanWeeks(w)}
+              >
+                {w} hafta
+              </Button>
+            ))}
+            <span className="text-xs text-muted-foreground ml-2">
+              ({productionPlan?.startDate} → {productionPlan?.endDate})
+            </span>
+            <Button
+              variant="outline" size="sm" className="gap-2 ml-auto"
+              onClick={() => exportXlsx(
+                (productionPlan?.planRows ?? []).map((r) => ({
+                  "Mahsulot": r.productName || "", "Birlik": r.unitShort || "",
+                  "O'rtacha haftalik sotuv": r.avgWeeklySales,
+                  "Joriy qoldiq": r.currentStock,
+                  "Tavsiya etilgan ishlab chiqarish": r.recommendedProduction,
+                })), `haftalik-reja-${planWeeks}hafta.xlsx`)}>
+              <Download className="w-4 h-4" /> Excel
+            </Button>
+          </div>
+
+          {/* Product plan table */}
+          <div>
+            <h3 className="text-sm font-semibold mb-2 text-foreground">Mahsulotlar — ishlab chiqarish tavsiyasi</h3>
+            <div className="border rounded-lg bg-white overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead>Mahsulot</TableHead>
+                    <TableHead className="text-right">O'rtacha haftalik sotuv</TableHead>
+                    <TableHead className="text-right">Joriy qoldiq</TableHead>
+                    <TableHead className="text-right">Kerak bo'lgan ishlab chiqarish</TableHead>
+                    <TableHead>Birlik</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {planLoading ? (
+                    <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Hisoblanmoqda...</TableCell></TableRow>
+                  ) : (productionPlan?.planRows ?? []).length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                      Bu davrda yuk chiqarish amalga oshirilmagan
+                    </TableCell></TableRow>
+                  ) : (productionPlan?.planRows ?? []).map((r) => {
+                    const needed = parseFloat(r.recommendedProduction);
+                    const stock = parseFloat(r.currentStock);
+                    return (
+                      <TableRow key={r.productId}>
+                        <TableCell className="font-medium text-sm">{r.productName}</TableCell>
+                        <TableCell className="text-right text-sm">{fmt(r.avgWeeklySales)}</TableCell>
+                        <TableCell className="text-right text-sm">
+                          <span className={stock <= 0 ? "text-destructive font-semibold" : ""}>{fmt(r.currentStock)}</span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {needed > 0 ? (
+                            <span className="font-bold text-primary">{fmt(r.recommendedProduction)}</span>
+                          ) : (
+                            <span className="text-emerald-600 text-sm">Yetarli ✓</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{r.unitShort}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Raw material needs table */}
+          {(productionPlan?.rmNeeds ?? []).length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-2 text-foreground">Hom ashyo ehtiyoji (ishlab chiqarish uchun)</h3>
+              <div className="border rounded-lg bg-white overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30">
+                      <TableHead>Hom ashyo</TableHead>
+                      <TableHead className="text-right">Kerakli miqdor</TableHead>
+                      <TableHead>Birlik</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(productionPlan?.rmNeeds ?? []).map((r) => (
+                      <TableRow key={r.rawMaterialId}>
+                        <TableCell className="font-medium text-sm">{r.rawMaterialName}</TableCell>
+                        <TableCell className="text-right font-bold text-primary">{fmt(r.neededQty)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{r.unitShort}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Hom ashyo miqdori — tarixiy ishlab chiqarishdan hisoblangan nisbatlarga asoslangan tavsiya.
+              </p>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Formula: O'rtacha haftalik sotuv = oxirgi {planWeeks} hafta sotuvlar ÷ {planWeeks}. Kerak bo'lgan ishlab chiqarish = O'rtacha haftalik sotuv − Joriy qoldiq (agar musbat bo'lsa).
           </p>
         </TabsContent>
       </Tabs>

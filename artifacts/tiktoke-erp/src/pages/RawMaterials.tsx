@@ -18,7 +18,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, Package } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Package, Download } from "lucide-react";
+import { exportXlsx, today } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface RM {
@@ -88,9 +89,17 @@ export default function RawMaterials() {
           <h1 className="text-2xl font-bold">Hom ashyo</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{rms.length} ta hom ashyo</p>
         </div>
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="w-4 h-4" /> Yangi qo'shish
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportXlsx(
+            filtered.map((r) => ({
+              "Kod": r.code || "", "Nomi": r.name, "Birlik": r.unitName || "", "Qoldiq": r.stock,
+            })), `hom-ashyo-${today()}.xlsx`)}>
+            <Download className="w-4 h-4" /> Excel
+          </Button>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="w-4 h-4" /> Yangi qo'shish
+          </Button>
+        </div>
       </div>
 
       {/* Search */}

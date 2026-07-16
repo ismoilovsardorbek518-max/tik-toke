@@ -7,3 +7,4 @@ export * from "./rm_receipts";
 export * from "./products";
 export * from "./productions";
 export * from "./deliveries";
+export * from "./adjustments";

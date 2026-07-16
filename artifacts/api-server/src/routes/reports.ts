@@ -13,6 +13,7 @@ import {
   customersTable,
   suppliersTable,
   unitsTable,
+  stockAdjustmentsTable,
 } from "@workspace/db/schema";
 import { eq, desc, gte, lte, and, sum, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
@@ -215,6 +216,146 @@ router.get("/reports/profit", requireAuth, async (req, res): Promise<void> => {
       cost: totals.cost.toFixed(2),
       profit: totals.profit.toFixed(2),
     },
+  });
+});
+
+// ── Production Plan (next-week forecast based on past N weeks of deliveries) ──
+router.get("/reports/production-plan", requireAuth, async (req, res): Promise<void> => {
+  const weeks = Math.max(1, parseInt((req.query.weeks as string) || "4"));
+  const endDate = new Date().toISOString().split("T")[0];
+  const startMs = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
+  const startDate = new Date(startMs).toISOString().split("T")[0];
+
+  // 1. Total delivered qty per product in the period
+  const delivRows = await db
+    .select({
+      productId: deliveryItemsTable.productId,
+      productName: productsTable.name,
+      unitShort: unitsTable.shortName,
+      totalQty: sum(deliveryItemsTable.quantity).as("totalQty"),
+    })
+    .from(deliveryItemsTable)
+    .innerJoin(deliveriesTable, eq(deliveryItemsTable.deliveryId, deliveriesTable.id))
+    .leftJoin(productsTable, eq(deliveryItemsTable.productId, productsTable.id))
+    .leftJoin(unitsTable, eq(productsTable.unitId, unitsTable.id))
+    .where(and(gte(deliveriesTable.date, startDate), lte(deliveriesTable.date, endDate)))
+    .groupBy(deliveryItemsTable.productId, productsTable.name, unitsTable.shortName);
+
+  // 2. Current stock per product
+  const allProducts = await db
+    .select({
+      id: productsTable.id,
+      produced: sql<string>`coalesce((select sum(po.quantity::numeric) from production_outputs po where po.product_id = ${productsTable.id}), 0)`,
+      delivered: sql<string>`coalesce((select sum(di.quantity::numeric) from delivery_items di where di.product_id = ${productsTable.id}), 0)`,
+      adjusted: sql<string>`coalesce((select sum(sa.quantity::numeric) from stock_adjustments sa where sa.type = 'product' and sa.item_id = ${productsTable.id}), 0)`,
+    })
+    .from(productsTable);
+
+  const stockMap = new Map<number, number>();
+  allProducts.forEach((r) => {
+    stockMap.set(r.id, parseFloat(r.produced) - parseFloat(r.delivered) + parseFloat(r.adjusted));
+  });
+
+  // 3. Historical input/output ratios: for each product, how much raw material per unit produced
+  //    Group: productionId -> outputs / inputs
+  const allOutputs = await db
+    .select({
+      productionId: productionOutputsTable.productionId,
+      productId: productionOutputsTable.productId,
+      quantity: productionOutputsTable.quantity,
+    })
+    .from(productionOutputsTable);
+
+  const allInputs = await db
+    .select({
+      productionId: productionInputsTable.productionId,
+      rawMaterialId: productionInputsTable.rawMaterialId,
+      rmName: rawMaterialsTable.name,
+      rmUnitShort: unitsTable.shortName,
+      quantity: productionInputsTable.quantity,
+    })
+    .from(productionInputsTable)
+    .leftJoin(rawMaterialsTable, eq(productionInputsTable.rawMaterialId, rawMaterialsTable.id))
+    .leftJoin(unitsTable, eq(rawMaterialsTable.unitId, unitsTable.id));
+
+  // inputs indexed by productionId
+  const inputsByProd = new Map<number, typeof allInputs>();
+  allInputs.forEach((inp) => {
+    if (!inputsByProd.has(inp.productionId)) inputsByProd.set(inp.productionId, []);
+    inputsByProd.get(inp.productionId)!.push(inp);
+  });
+
+  // ratioAccum[productId][rmId] = { totalRmQty, totalProductQty, rmName, rmUnitShort }
+  const ratioAccum = new Map<number, Map<number, { totalRmQty: number; totalProdQty: number; rmName: string; rmUnitShort: string }>>();
+
+  allOutputs.forEach((out) => {
+    const outQty = parseFloat(out.quantity);
+    if (outQty <= 0) return;
+    const inputs = inputsByProd.get(out.productionId) || [];
+    if (!ratioAccum.has(out.productId)) ratioAccum.set(out.productId, new Map());
+    const rmMap = ratioAccum.get(out.productId)!;
+    inputs.forEach((inp) => {
+      const inpQty = parseFloat(inp.quantity);
+      const existing = rmMap.get(inp.rawMaterialId);
+      if (existing) {
+        existing.totalRmQty += inpQty;
+        existing.totalProdQty += outQty;
+      } else {
+        rmMap.set(inp.rawMaterialId, {
+          totalRmQty: inpQty,
+          totalProdQty: outQty,
+          rmName: inp.rmName || "",
+          rmUnitShort: inp.rmUnitShort || "",
+        });
+      }
+    });
+  });
+
+  // 4. Build plan rows
+  const planRows = delivRows.map((d) => {
+    const avgWeekly = parseFloat((d.totalQty as string) || "0") / weeks;
+    const currentStock = stockMap.get(d.productId as number) || 0;
+    const needed = Math.max(0, avgWeekly - currentStock);
+    return {
+      productId: d.productId,
+      productName: d.productName,
+      unitShort: d.unitShort,
+      avgWeeklySales: avgWeekly.toFixed(3),
+      currentStock: currentStock.toFixed(3),
+      recommendedProduction: needed.toFixed(3),
+    };
+  });
+
+  // 5. Aggregate raw material needs from recommended production quantities
+  const rmNeedsMap = new Map<number, { rmName: string; rmUnitShort: string; needed: number }>();
+  planRows.forEach((row) => {
+    const prodNeeded = parseFloat(row.recommendedProduction);
+    if (prodNeeded <= 0) return;
+    const rmMap = ratioAccum.get(row.productId as number);
+    if (!rmMap) return;
+    rmMap.forEach((val, rmId) => {
+      const ratio = val.totalProdQty > 0 ? val.totalRmQty / val.totalProdQty : 0;
+      const needed = prodNeeded * ratio;
+      const existing = rmNeedsMap.get(rmId);
+      if (existing) {
+        existing.needed += needed;
+      } else {
+        rmNeedsMap.set(rmId, { rmName: val.rmName, rmUnitShort: val.rmUnitShort, needed });
+      }
+    });
+  });
+
+  res.json({
+    weeks,
+    startDate,
+    endDate,
+    planRows,
+    rmNeeds: Array.from(rmNeedsMap.entries()).map(([id, v]) => ({
+      rawMaterialId: id,
+      rawMaterialName: v.rmName,
+      unitShort: v.rmUnitShort,
+      neededQty: v.needed.toFixed(3),
+    })),
   });
 });
 

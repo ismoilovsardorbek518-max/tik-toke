@@ -11,6 +11,7 @@ import productionsRouter from "./productions";
 import deliveriesRouter from "./deliveries";
 import dashboardRouter from "./dashboard";
 import reportsRouter from "./reports";
+import adjustmentsRouter from "./adjustments";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(productionsRouter);
 router.use(deliveriesRouter);
 router.use(dashboardRouter);
 router.use(reportsRouter);
+router.use(adjustmentsRouter);
 
 export default router;

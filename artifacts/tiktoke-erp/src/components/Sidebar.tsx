@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import {
   LayoutDashboard, Package, ArrowDownToLine, Box,
   Factory, Truck, Users, Building2, BarChart3,
-  Settings, LogOut, ChevronRight,
+  Settings, LogOut, ChevronRight, SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/products", label: "Mahsulotlar", icon: Box, divider: true },
   { href: "/productions", label: "Ishlab chiqarish", icon: Factory },
   { href: "/deliveries", label: "Yuk chiqarish", icon: Truck },
+  { href: "/adjustments", label: "Korrektirovka", icon: SlidersHorizontal },
   { href: "/clients", label: "Klientlar", icon: Users, divider: true },
   { href: "/suppliers", label: "Yetkazib beruvchilar", icon: Building2 },
   { href: "/units", label: "O'lchov birliklari", icon: ChevronRight },

@@ -5,6 +5,7 @@ import {
   unitsTable,
   rmReceiptItemsTable,
   productionInputsTable,
+  stockAdjustmentsTable,
 } from "@workspace/db/schema";
 import { eq, sql, ilike, or } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
@@ -31,6 +32,9 @@ router.get("/raw-materials", requireAuth, async (req, res): Promise<void> => {
       used: sql<string>`coalesce((
         select sum(pi.quantity::numeric) from production_inputs pi where pi.raw_material_id = ${rawMaterialsTable.id}
       ), 0)`,
+      adjusted: sql<string>`coalesce((
+        select sum(sa.quantity::numeric) from stock_adjustments sa where sa.type = 'raw_material' and sa.item_id = ${rawMaterialsTable.id}
+      ), 0)`,
     })
     .from(rawMaterialsTable)
     .leftJoin(unitsTable, eq(rawMaterialsTable.unitId, unitsTable.id))
@@ -47,7 +51,7 @@ router.get("/raw-materials", requireAuth, async (req, res): Promise<void> => {
   res.json(
     filtered.map((r) => ({
       ...r,
-      stock: (parseFloat(r.received) - parseFloat(r.used)).toFixed(3),
+      stock: (parseFloat(r.received) - parseFloat(r.used) + parseFloat(r.adjusted)).toFixed(3),
     }))
   );
 });
