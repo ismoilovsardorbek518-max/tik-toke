@@ -50,9 +50,15 @@ if (process.env.NODE_ENV === "production") {
 }
 
 // JSON error handler — xato sababini ko'rish uchun
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const e = err as Record<string, unknown>;
   logger.error({ err }, "Unhandled error");
-  res.status(500).json({ error: err.message ?? "Internal Server Error" });
+  res.status(500).json({
+    error: (e as Error).message,
+    cause: (e.cause as Error)?.message,
+    code: e.code,
+    stack: (e as Error).stack?.split("\n").slice(0, 5),
+  });
 });
 
 export default app;
