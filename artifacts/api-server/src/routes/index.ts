@@ -12,6 +12,9 @@ import deliveriesRouter from "./deliveries";
 import dashboardRouter from "./dashboard";
 import reportsRouter from "./reports";
 import adjustmentsRouter from "./adjustments";
+import forecastRouter from "./forecast";
+import kassaRouter from "./kassa";
+import weeklyPlanRouter from "./weekly-plan";
 
 const router: IRouter = Router();
 
@@ -28,5 +31,8 @@ router.use(deliveriesRouter);
 router.use(dashboardRouter);
 router.use(reportsRouter);
 router.use(adjustmentsRouter);
+router.use(forecastRouter);
+router.use(kassaRouter);
+router.use(weeklyPlanRouter);
 
 export default router;

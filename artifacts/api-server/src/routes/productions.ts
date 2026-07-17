@@ -7,6 +7,7 @@ import {
   productsTable,
   rawMaterialsTable,
   unitsTable,
+  productRecipesTable,
 } from "@workspace/db/schema";
 import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
@@ -27,7 +28,6 @@ router.get("/productions", requireAuth, async (req, res): Promise<void> => {
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(productionsTable.date), desc(productionsTable.id));
 
-  // Attach summary counts
   const result = await Promise.all(
     prods.map(async (p) => {
       const outputs = await db
@@ -90,9 +90,38 @@ router.get("/productions/:id", requireAuth, async (req, res): Promise<void> => {
   res.json({ ...prod, outputs, inputs });
 });
 
+/**
+ * Recipe asosida inputs avtomatik hisoblab qaytaradi.
+ * Har bir output mahsuloti uchun: quantityPerUnit * producedQty = totalRmQty
+ */
+async function autoCalcInputs(
+  outputs: Array<{ productId: number; quantity: string }>
+): Promise<Array<{ rawMaterialId: number; quantity: string }>> {
+  const rmMap = new Map<number, number>();
+
+  for (const out of outputs) {
+    const qty = parseFloat(out.quantity);
+    if (!qty) continue;
+    const recipe = await db
+      .select()
+      .from(productRecipesTable)
+      .where(eq(productRecipesTable.productId, out.productId));
+
+    for (const r of recipe) {
+      const needed = qty * parseFloat(r.quantityPerUnit);
+      rmMap.set(r.rawMaterialId, (rmMap.get(r.rawMaterialId) ?? 0) + needed);
+    }
+  }
+
+  return Array.from(rmMap.entries()).map(([rawMaterialId, total]) => ({
+    rawMaterialId,
+    quantity: total.toFixed(3),
+  }));
+}
+
 // Create production
 router.post("/productions", requireAuth, async (req, res): Promise<void> => {
-  const { date, note, outputs, inputs } = req.body;
+  const { date, note, outputs, inputs, autoFillInputs } = req.body;
   const user = (req as any).user;
 
   if (!date || !outputs || !Array.isArray(outputs) || outputs.length === 0) {
@@ -110,25 +139,31 @@ router.post("/productions", requireAuth, async (req, res): Promise<void> => {
     createdBy: user.userId,
   }).returning();
 
-  if (outputs.length) {
-    await db.insert(productionOutputsTable).values(
-      outputs.map((o: any) => {
-        const qty = parseFloat(o.quantity);
-        const unitCost = parseFloat(o.unitCost || "0");
-        return {
-          productionId: prod.id,
-          productId: o.productId,
-          quantity: qty.toFixed(3),
-          unitCost: unitCost.toFixed(2),
-          totalCost: (qty * unitCost).toFixed(2),
-        };
-      })
-    );
+  const outputRows = outputs.map((o: any) => {
+    const qty = parseFloat(o.quantity);
+    const unitCost = parseFloat(o.unitCost || "0");
+    return {
+      productionId: prod.id,
+      productId: o.productId,
+      quantity: qty.toFixed(3),
+      unitCost: unitCost.toFixed(2),
+      totalCost: (qty * unitCost).toFixed(2),
+    };
+  });
+  await db.insert(productionOutputsTable).values(outputRows);
+
+  // Agar inputs berilmagan bo'lsa yoki autoFillInputs=true bo'lsa — recipe'dan hisoblash
+  let finalInputs = inputs && inputs.length > 0 ? inputs : null;
+  if (!finalInputs || autoFillInputs) {
+    finalInputs = await autoCalcInputs(outputs.map((o: any) => ({
+      productId: o.productId,
+      quantity: o.quantity,
+    })));
   }
 
-  if (inputs && inputs.length) {
+  if (finalInputs && finalInputs.length > 0) {
     await db.insert(productionInputsTable).values(
-      inputs.map((i: any) => ({
+      finalInputs.map((i: any) => ({
         productionId: prod.id,
         rawMaterialId: i.rawMaterialId,
         quantity: parseFloat(i.quantity).toFixed(3),
@@ -136,13 +171,13 @@ router.post("/productions", requireAuth, async (req, res): Promise<void> => {
     );
   }
 
-  res.status(201).json({ ...prod, outputs, inputs });
+  res.status(201).json({ ...prod, outputs: outputRows, inputs: finalInputs });
 });
 
-// Update production (edit a completed operation)
+// Update production
 router.put("/productions/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
-  const { date, note, outputs, inputs } = req.body;
+  const { date, note, outputs, inputs, autoFillInputs } = req.body;
 
   if (!date || !outputs || !Array.isArray(outputs) || outputs.length === 0) {
     res.status(400).json({ error: "date va outputs[] kerak" }); return;
@@ -172,9 +207,17 @@ router.put("/productions/:id", requireAuth, async (req, res): Promise<void> => {
   });
   await db.insert(productionOutputsTable).values(outputRows);
 
-  if (inputs && inputs.length) {
+  let finalInputs = inputs && inputs.length > 0 ? inputs : null;
+  if (!finalInputs || autoFillInputs) {
+    finalInputs = await autoCalcInputs(outputs.map((o: any) => ({
+      productId: o.productId,
+      quantity: o.quantity,
+    })));
+  }
+
+  if (finalInputs && finalInputs.length > 0) {
     await db.insert(productionInputsTable).values(
-      inputs.map((i: any) => ({
+      finalInputs.map((i: any) => ({
         productionId: id,
         rawMaterialId: i.rawMaterialId,
         quantity: parseFloat(i.quantity).toFixed(3),
@@ -182,7 +225,7 @@ router.put("/productions/:id", requireAuth, async (req, res): Promise<void> => {
     );
   }
 
-  res.json({ ...prod, outputs: outputRows, inputs: inputs || [] });
+  res.json({ ...prod, outputs: outputRows, inputs: finalInputs || [] });
 });
 
 // Delete production
@@ -190,6 +233,23 @@ router.delete("/productions/:id", requireAuth, async (req, res): Promise<void> =
   const id = parseInt(req.params.id as string);
   await db.delete(productionsTable).where(eq(productionsTable.id, id));
   res.json({ ok: true });
+});
+
+// Get recipe-based inputs preview for given outputs (before saving)
+router.post("/productions/preview-inputs", requireAuth, async (req, res): Promise<void> => {
+  const { outputs } = req.body;
+  if (!Array.isArray(outputs)) { res.status(400).json({ error: "outputs[] kerak" }); return; }
+  const inputs = await autoCalcInputs(outputs);
+  // Enrich with names
+  const enriched = await Promise.all(inputs.map(async (i) => {
+    const [rm] = await db
+      .select({ name: rawMaterialsTable.name, code: rawMaterialsTable.code, unitShort: unitsTable.shortName })
+      .from(rawMaterialsTable)
+      .leftJoin(unitsTable, eq(rawMaterialsTable.unitId, unitsTable.id))
+      .where(eq(rawMaterialsTable.id, i.rawMaterialId));
+    return { ...i, rawMaterialName: rm?.name, rawMaterialCode: rm?.code, unitShort: rm?.unitShort };
+  }));
+  res.json(enriched);
 });
 
 export default router;

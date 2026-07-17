@@ -2,3 +2,4 @@
 - [Orphaned files pattern](orphaned-files.md) — abandoned feature files (routes/pages/schema) left unwired from router/App; always check barrel/index before trusting a file is live; delete if they break tsc
 - [DB rebuild required](db-rebuild.md) — after schema changes, must run `pnpm --filter @workspace/db exec tsc -b --force` before api-server tsc or it reports missing columns
 - [Vite proxy required](vite-proxy.md) — Vite dev server must proxy /api to port 8080 (Express); without it browser fetches hit Vite and fail; also need schema pushed + admin user seeded before first login
+- [ERP features added](erp-features.md) — product weight + auto-code, product_recipes table, forecast, kassa (cash), weekly_plan; workflows need PORT= prefix; fuser -k ports before restart if EADDRINUSE

@@ -9,6 +9,7 @@ export const productsTable = pgTable("products", {
   name: text("name").notNull(),
   unitId: integer("unit_id").references(() => unitsTable.id),
   sellingPrice: numeric("selling_price", { precision: 14, scale: 2 }).default("0"),
+  weight: numeric("weight", { precision: 14, scale: 3 }),
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
 });

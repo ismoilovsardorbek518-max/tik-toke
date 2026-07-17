@@ -7,10 +7,16 @@ import {
   productionInputsTable,
   stockAdjustmentsTable,
 } from "@workspace/db/schema";
-import { eq, sql, ilike, or } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router = Router();
+
+// Auto-code generator: RM-00001
+async function nextRmCode(): Promise<string> {
+  const [{ c }] = await db.select({ c: sql<number>`count(*)` }).from(rawMaterialsTable);
+  return `RM-${(Number(c) + 1).toString().padStart(5, "0")}`;
+}
 
 // Get all raw materials with stock levels
 router.get("/raw-materials", requireAuth, async (req, res): Promise<void> => {
@@ -60,7 +66,8 @@ router.get("/raw-materials", requireAuth, async (req, res): Promise<void> => {
 router.post("/raw-materials", requireAuth, async (req, res): Promise<void> => {
   const { code, name, unitId, description } = req.body;
   if (!name) { res.status(400).json({ error: "name kerak" }); return; }
-  const [row] = await db.insert(rawMaterialsTable).values({ code, name, unitId, description }).returning();
+  const autoCode = code || await nextRmCode();
+  const [row] = await db.insert(rawMaterialsTable).values({ code: autoCode, name, unitId, description }).returning();
   res.status(201).json(row);
 });
 

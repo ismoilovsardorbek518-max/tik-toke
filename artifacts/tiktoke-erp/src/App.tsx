@@ -21,6 +21,9 @@ import Units from '@/pages/Units';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
 import Adjustments from '@/pages/Adjustments';
+import Forecast from '@/pages/Forecast';
+import Kassa from '@/pages/Kassa';
+import WeeklyPlan from '@/pages/WeeklyPlan';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -56,6 +59,9 @@ const ProtectedUnits        = () => <ProtectedRoute component={Units} />;
 const ProtectedReports      = () => <ProtectedRoute component={Reports} />;
 const ProtectedSettings     = () => <ProtectedRoute component={Settings} />;
 const ProtectedAdjustments  = () => <ProtectedRoute component={Adjustments} />;
+const ProtectedForecast     = () => <ProtectedRoute component={Forecast} />;
+const ProtectedKassa        = () => <ProtectedRoute component={Kassa} />;
+const ProtectedWeeklyPlan   = () => <ProtectedRoute component={WeeklyPlan} />;
 
 function Router() {
   return (
@@ -72,6 +78,9 @@ function Router() {
       <Route path="/units" component={ProtectedUnits} />
       <Route path="/reports" component={ProtectedReports} />
       <Route path="/adjustments" component={ProtectedAdjustments} />
+      <Route path="/forecast" component={ProtectedForecast} />
+      <Route path="/kassa" component={ProtectedKassa} />
+      <Route path="/weekly-plan" component={ProtectedWeeklyPlan} />
       <Route path="/settings" component={ProtectedSettings} />
       <Route component={NotFound} />
     </Switch>
