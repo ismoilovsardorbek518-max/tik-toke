@@ -10,9 +10,13 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+// Internal Render URL: dpg-xxx (no dot in hostname) — no SSL needed
+// External URL: *.render.com or localhost — SSL needed (or none)
+const dbUrl = process.env.DATABASE_URL!;
+const isInternalRender = /postgresql:\/\/[^@]+@dpg-[^./]+\//.test(dbUrl);
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes("localhost")
+  connectionString: dbUrl,
+  ssl: isInternalRender || dbUrl.includes("localhost")
     ? false
     : { rejectUnauthorized: false },
 });
