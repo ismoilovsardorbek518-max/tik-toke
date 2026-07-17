@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "path";
@@ -48,5 +48,11 @@ if (process.env.NODE_ENV === "production") {
     });
   }
 }
+
+// JSON error handler — xato sababini ko'rish uchun
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error({ err }, "Unhandled error");
+  res.status(500).json({ error: err.message ?? "Internal Server Error" });
+});
 
 export default app;
