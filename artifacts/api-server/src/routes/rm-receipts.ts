@@ -10,6 +10,9 @@ import {
 import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
+const addSupplierDebt = (supplierId: number, amount: number) =>
+  db.execute(sql`UPDATE suppliers SET balance = balance + ${amount} WHERE id = ${supplierId}`);
+
 const router = Router();
 
 // List receipts with filters
@@ -89,6 +92,9 @@ router.post("/rm-receipts", requireAuth, async (req, res): Promise<void> => {
   if (!date || !items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "date va items[] kerak" }); return;
   }
+  if (!supplierId) {
+    res.status(400).json({ error: "Yetkazib beruvchi tanlanishi shart" }); return;
+  }
 
   // Generate receipt number
   const count = await db.select({ c: sql<number>`count(*)` }).from(rmReceiptsTable);
@@ -101,7 +107,7 @@ router.post("/rm-receipts", requireAuth, async (req, res): Promise<void> => {
   const [receipt] = await db.insert(rmReceiptsTable).values({
     receiptNumber,
     date,
-    supplierId: supplierId || null,
+    supplierId: parseInt(supplierId),
     note: note || null,
     totalAmount: totalAmount.toFixed(2),
     createdBy: user.userId,
@@ -116,6 +122,8 @@ router.post("/rm-receipts", requireAuth, async (req, res): Promise<void> => {
   }));
 
   await db.insert(rmReceiptItemsTable).values(itemRows);
+  // Yetkazuvchi balansini oshir (biz qarzkor bo'ldik)
+  await addSupplierDebt(parseInt(supplierId), totalAmount);
 
   res.status(201).json({ ...receipt, items: itemRows });
 });
@@ -128,16 +136,24 @@ router.put("/rm-receipts/:id", requireAuth, async (req, res): Promise<void> => {
   if (!date || !items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "date va items[] kerak" }); return;
   }
+  if (!supplierId) {
+    res.status(400).json({ error: "Yetkazib beruvchi tanlanishi shart" }); return;
+  }
 
   const [existing] = await db.select().from(rmReceiptsTable).where(eq(rmReceiptsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Topilmadi" }); return; }
+
+  // Eski balansni qaytarib ol
+  if (existing.supplierId) {
+    await addSupplierDebt(existing.supplierId, -parseFloat(existing.totalAmount));
+  }
 
   const totalAmount = items.reduce((s: number, it: any) =>
     s + parseFloat(it.quantity) * parseFloat(it.unitPrice), 0);
 
   const [receipt] = await db.update(rmReceiptsTable).set({
     date,
-    supplierId: supplierId || null,
+    supplierId: parseInt(supplierId),
     note: note || null,
     totalAmount: totalAmount.toFixed(2),
   }).where(eq(rmReceiptsTable.id, id)).returning();
@@ -153,6 +169,8 @@ router.put("/rm-receipts/:id", requireAuth, async (req, res): Promise<void> => {
   }));
 
   await db.insert(rmReceiptItemsTable).values(itemRows);
+  // Yangi balansni qo'sh
+  await addSupplierDebt(parseInt(supplierId), totalAmount);
 
   res.json({ ...receipt, items: itemRows });
 });
@@ -160,6 +178,10 @@ router.put("/rm-receipts/:id", requireAuth, async (req, res): Promise<void> => {
 // Delete receipt
 router.delete("/rm-receipts/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
+  const [existing] = await db.select().from(rmReceiptsTable).where(eq(rmReceiptsTable.id, id));
+  if (existing?.supplierId) {
+    await addSupplierDebt(existing.supplierId, -parseFloat(existing.totalAmount));
+  }
   await db.delete(rmReceiptsTable).where(eq(rmReceiptsTable.id, id));
   res.json({ ok: true });
 });

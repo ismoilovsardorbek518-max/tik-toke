@@ -152,8 +152,11 @@ export default function Deliveries() {
     if (!date || validLines.length === 0) {
       toast({ title: "Sana va kamida 1 ta mahsulot kerak", variant: "destructive" }); return;
     }
+    if (!customerId) {
+      toast({ title: "Klientni tanlang", variant: "destructive" }); return;
+    }
     saveMutation.mutate({
-      date, customerId: customerId || null, paymentMethod, note: note || null,
+      date, customerId: parseInt(customerId), paymentMethod, note: note || null,
       items: validLines.map((l) => ({
         productId: parseInt(l.productId), quantity: l.quantity,
         unitPrice: l.unitPrice, discountPercent: l.discountPercent || "0",
@@ -277,9 +280,9 @@ export default function Deliveries() {
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Klient</Label>
+                <Label>Klient <span className="text-destructive">*</span></Label>
                 <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger><SelectValue placeholder="Tanlang (ixtiyoriy)" /></SelectTrigger>
+                  <SelectTrigger className={!customerId ? "border-destructive/50" : ""}><SelectValue placeholder="Tanlang..." /></SelectTrigger>
                   <SelectContent>
                     {customers.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
                   </SelectContent>

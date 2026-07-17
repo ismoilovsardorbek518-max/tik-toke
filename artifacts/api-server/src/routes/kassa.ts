@@ -4,8 +4,10 @@ import {
   cashTransactionsTable,
   customersTable,
   suppliersTable,
+  deliveriesTable,
+  rmReceiptsTable,
 } from "@workspace/db/schema";
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, asc, and, gte, lte, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router = Router();
@@ -115,33 +117,83 @@ router.get("/kassa/balances", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
-// Akt sverka: bitta mijoz/yetkazuvchi bo'yicha barcha tranzaksiyalar
+// Akt sverka: bitta mijoz/yetkazuvchi bo'yicha yuk chiqarish + to'lovlar
 router.get("/kassa/sverka/:partyType/:partyId", requireAuth, async (req, res): Promise<void> => {
   const { partyType, partyId } = req.params as Record<string, string>;
+  const pid = parseInt(partyId);
+
+  // Kassa tranzaksiyalari
   const txs = await db
     .select()
     .from(cashTransactionsTable)
     .where(and(
       eq(cashTransactionsTable.partyType, partyType),
-      eq(cashTransactionsTable.partyId, parseInt(partyId))
-    ))
-    .orderBy(cashTransactionsTable.date, cashTransactionsTable.id);
+      eq(cashTransactionsTable.partyId, pid)
+    ));
 
-  let balance = 0;
-  const withRunning = txs.map((t) => {
-    const amt = parseFloat(t.amount);
-    if (t.direction === "in") balance += amt;
-    else balance -= amt;
-    return { ...t, runningBalance: balance.toFixed(2) };
+  // Yuk chiqarish yoki xom ashyo kirim yozuvlari
+  type SverkaRow = {
+    id: number; date: string; kind: "delivery" | "receipt" | "payment";
+    description: string; debit: number; credit: number;
+  };
+
+  const rows: SverkaRow[] = [];
+
+  if (partyType === "customer") {
+    // Yuk chiqarish — qarz (debit)
+    const deliveries = await db
+      .select({ id: deliveriesTable.id, date: deliveriesTable.date, deliveryNumber: deliveriesTable.deliveryNumber, totalAmount: deliveriesTable.totalAmount })
+      .from(deliveriesTable)
+      .where(eq(deliveriesTable.customerId, pid));
+
+    for (const d of deliveries) {
+      rows.push({ id: d.id, date: d.date, kind: "delivery", description: `Yuk chiqarish ${d.deliveryNumber}`, debit: parseFloat(d.totalAmount), credit: 0 });
+    }
+
+    // Kassa to'lovlari
+    for (const t of txs) {
+      const amt = parseFloat(t.amount);
+      // "in" = mijoz to'lov qildi (kredit — qarzni kamaytiradi)
+      // "out" = qaytarish (debit — qarzni oshiradi)
+      rows.push({ id: t.id + 100000, date: t.date, kind: "payment", description: `To'lov (${t.paymentMethod ?? "naqd"})${t.note ? ": " + t.note : ""}`, debit: t.direction === "out" ? amt : 0, credit: t.direction === "in" ? amt : 0 });
+    }
+  } else {
+    // Xom ashyo kirim — biz qarzkor (debit)
+    const receipts = await db
+      .select({ id: rmReceiptsTable.id, date: rmReceiptsTable.date, receiptNumber: rmReceiptsTable.receiptNumber, totalAmount: rmReceiptsTable.totalAmount })
+      .from(rmReceiptsTable)
+      .where(eq(rmReceiptsTable.supplierId, pid));
+
+    for (const r of receipts) {
+      rows.push({ id: r.id, date: r.date, kind: "receipt", description: `Hom ashyo kirim ${r.receiptNumber}`, debit: parseFloat(r.totalAmount), credit: 0 });
+    }
+
+    // Kassa to'lovlari
+    for (const t of txs) {
+      const amt = parseFloat(t.amount);
+      // "out" = biz to'ladik (kredit — qarzni kamaytiradi)
+      // "in" = qaytarish (debit)
+      rows.push({ id: t.id + 100000, date: t.date, kind: "payment", description: `To'lov (${t.paymentMethod ?? "naqd"})${t.note ? ": " + t.note : ""}`, debit: t.direction === "in" ? amt : 0, credit: t.direction === "out" ? amt : 0 });
+    }
+  }
+
+  // Sana bo'yicha tartiblash
+  rows.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id);
+
+  // Running balance: debit = qarz oshadi, credit = qarz kamayadi
+  let running = 0;
+  const withRunning = rows.map((r) => {
+    running += r.debit - r.credit;
+    return { ...r, runningBalance: running.toFixed(2) };
   });
 
   let partyName = "";
   let currentBalance = 0;
   if (partyType === "customer") {
-    const [c] = await db.select().from(customersTable).where(eq(customersTable.id, parseInt(partyId)));
+    const [c] = await db.select().from(customersTable).where(eq(customersTable.id, pid));
     partyName = c?.name ?? ""; currentBalance = Number(c?.balance ?? 0);
   } else {
-    const [s] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, parseInt(partyId)));
+    const [s] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, pid));
     partyName = s?.name ?? ""; currentBalance = Number(s?.balance ?? 0);
   }
 

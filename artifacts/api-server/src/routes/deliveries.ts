@@ -10,6 +10,9 @@ import {
 import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
+const addCustomerDebt = (customerId: number, amount: number) =>
+  db.execute(sql`UPDATE customers SET balance = balance + ${amount} WHERE id = ${customerId}`);
+
 const router = Router();
 
 // List deliveries with filters
@@ -95,6 +98,9 @@ router.post("/deliveries", requireAuth, async (req, res): Promise<void> => {
   if (!date || !items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "date va items[] kerak" }); return;
   }
+  if (!customerId) {
+    res.status(400).json({ error: "Klient tanlanishi shart" }); return;
+  }
 
   const count = await db.select({ c: sql<number>`count(*)` }).from(deliveriesTable);
   const num = (Number(count[0].c) + 1).toString().padStart(5, "0");
@@ -131,6 +137,8 @@ router.post("/deliveries", requireAuth, async (req, res): Promise<void> => {
   });
 
   await db.insert(deliveryItemsTable).values(itemRows);
+  // Mijoz balansini oshir (qarz ko'paydi)
+  await addCustomerDebt(parseInt(customerId), totalAmount);
   res.status(201).json({ ...delivery, items: itemRows });
 });
 
@@ -142,9 +150,17 @@ router.put("/deliveries/:id", requireAuth, async (req, res): Promise<void> => {
   if (!date || !items || !Array.isArray(items) || items.length === 0) {
     res.status(400).json({ error: "date va items[] kerak" }); return;
   }
+  if (!customerId) {
+    res.status(400).json({ error: "Klient tanlanishi shart" }); return;
+  }
 
   const [existing] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, id));
   if (!existing) { res.status(404).json({ error: "Topilmadi" }); return; }
+
+  // Eski balansni qaytarib ol
+  if (existing.customerId) {
+    await addCustomerDebt(existing.customerId, -parseFloat(existing.totalAmount));
+  }
 
   const totalAmount = items.reduce((s: number, it: any) => {
     const base = parseFloat(it.quantity) * parseFloat(it.unitPrice);
@@ -154,7 +170,7 @@ router.put("/deliveries/:id", requireAuth, async (req, res): Promise<void> => {
 
   const [delivery] = await db.update(deliveriesTable).set({
     date,
-    customerId: customerId || null,
+    customerId: parseInt(customerId),
     paymentMethod: paymentMethod || "cash",
     note: note || null,
     totalAmount: totalAmount.toFixed(2),
@@ -177,12 +193,18 @@ router.put("/deliveries/:id", requireAuth, async (req, res): Promise<void> => {
   });
 
   await db.insert(deliveryItemsTable).values(itemRows);
+  // Yangi balansni qo'sh
+  await addCustomerDebt(parseInt(customerId), totalAmount);
   res.json({ ...delivery, items: itemRows });
 });
 
 // Delete delivery
 router.delete("/deliveries/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
+  const [existing] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, id));
+  if (existing?.customerId) {
+    await addCustomerDebt(existing.customerId, -parseFloat(existing.totalAmount));
+  }
   await db.delete(deliveriesTable).where(eq(deliveriesTable.id, id));
   res.json({ ok: true });
 });

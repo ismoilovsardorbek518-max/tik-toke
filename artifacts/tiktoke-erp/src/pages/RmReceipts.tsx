@@ -127,8 +127,11 @@ export default function RmReceipts() {
     if (!date || validLines.length === 0) {
       toast({ title: "Sana va kamida 1 ta mahsulot kerak", variant: "destructive" }); return;
     }
+    if (!supplierId) {
+      toast({ title: "Yetkazib beruvchini tanlang", variant: "destructive" }); return;
+    }
     saveMutation.mutate({
-      date, supplierId: supplierId || null, note: note || null,
+      date, supplierId: parseInt(supplierId), note: note || null,
       items: validLines.map((l) => ({
         rawMaterialId: parseInt(l.rawMaterialId),
         quantity: l.quantity, unitPrice: l.unitPrice,
@@ -240,9 +243,9 @@ export default function RmReceipts() {
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Yetkazib beruvchi</Label>
+                <Label>Yetkazib beruvchi <span className="text-destructive">*</span></Label>
                 <Select value={supplierId} onValueChange={setSupplierId}>
-                  <SelectTrigger><SelectValue placeholder="Tanlang (ixtiyoriy)" /></SelectTrigger>
+                  <SelectTrigger className={!supplierId ? "border-destructive/50" : ""}><SelectValue placeholder="Tanlang..." /></SelectTrigger>
                   <SelectContent>
                     {suppliers.map((s) => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
                   </SelectContent>
