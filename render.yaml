@@ -48,7 +48,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE
-        fromService:
-          name: tiktoke-erp-api
-          type: web
-          property: host         # Render API xizmatining URL'ni avtomatik oladi
+        sync: false              # Backend deploy bo'lgandan keyin qo'lda kiriting: https://tiktoke-erp-api.onrender.com
