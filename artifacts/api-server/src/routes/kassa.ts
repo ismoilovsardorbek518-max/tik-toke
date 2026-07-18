@@ -43,6 +43,39 @@ router.get("/kassa", requireAuth, async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
+// ── Balance helper ──────────────────────────────────────────
+// Customer balance semantics: positive = customer owes us (debt)
+//   'in'  = payment received  → balance -= amt  (debt shrinks)
+//   'out' = refund to customer → balance += amt  (debt grows)
+// Supplier balance semantics: positive = we owe supplier
+//   'out' = we paid supplier  → balance -= amt
+//   'in'  = refund from supplier → balance += amt
+function customerDelta(direction: string, amt: number) {
+  return direction === "in" ? -amt : amt;
+}
+function supplierDelta(direction: string, amt: number) {
+  return direction === "out" ? -amt : amt;
+}
+
+async function applyBalanceDelta(
+  trx: typeof db,
+  partyType: string,
+  partyId: number,
+  delta: number,
+) {
+  if (partyType === "customer") {
+    await trx
+      .update(customersTable)
+      .set({ balance: sql`${customersTable.balance} + ${delta.toFixed(2)}` })
+      .where(eq(customersTable.id, partyId));
+  } else if (partyType === "supplier") {
+    await trx
+      .update(suppliersTable)
+      .set({ balance: sql`${suppliersTable.balance} + ${delta.toFixed(2)}` })
+      .where(eq(suppliersTable.id, partyId));
+  }
+}
+
 // Create transaction + update party balance
 router.post("/kassa", requireAuth, async (req, res): Promise<void> => {
   const { partyType, partyId, direction, amount, paymentMethod, note, date } = req.body;
@@ -54,48 +87,39 @@ router.post("/kassa", requireAuth, async (req, res): Promise<void> => {
   const amt = parseFloat(amount);
   if (isNaN(amt) || amt <= 0) { res.status(400).json({ error: "amount musbat bo'lishi kerak" }); return; }
 
-  const [tx] = await db.insert(cashTransactionsTable).values({
-    partyType, partyId: parseInt(partyId), direction, amount: amt.toFixed(2),
-    paymentMethod: paymentMethod || "cash", note: note || null, date,
-    createdBy: user.userId,
-  }).returning();
+  const pid = parseInt(partyId);
+  const delta = partyType === "customer" ? customerDelta(direction, amt) : supplierDelta(direction, amt);
 
-  // Balansni yangilash:
-  // Customer: 'in' (to'lov keldi) => balance kamayadi (qarz kamayadi)
-  //           'out' (qaytarish)  => balance ko'payadi
-  // Supplier: 'out' (to'lov qildik) => balance kamayadi
-  //           'in' (qaytarish)   => balance ko'payadi
-  if (partyType === "customer") {
-    const delta = direction === "in" ? -amt : amt;
-    await db.execute(
-      sql`UPDATE customers SET balance = balance + ${delta} WHERE id = ${parseInt(partyId)}`
-    );
-  } else if (partyType === "supplier") {
-    const delta = direction === "out" ? -amt : amt;
-    await db.execute(
-      sql`UPDATE suppliers SET balance = balance + ${delta} WHERE id = ${parseInt(partyId)}`
-    );
-  }
+  const tx = await db.transaction(async (trx) => {
+    const [inserted] = await trx.insert(cashTransactionsTable).values({
+      partyType, partyId: pid, direction, amount: amt.toFixed(2),
+      paymentMethod: paymentMethod || "cash", note: note || null, date,
+      createdBy: user.userId,
+    }).returning();
+    await applyBalanceDelta(trx, partyType, pid, delta);
+    return inserted;
+  });
 
   res.status(201).json(tx);
 });
 
-// Delete transaction (va balansni qaytarish)
+// Delete transaction + reverse balance
 router.delete("/kassa/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const [tx] = await db.select().from(cashTransactionsTable).where(eq(cashTransactionsTable.id, id));
   if (!tx) { res.status(404).json({ error: "Topilmadi" }); return; }
 
   const amt = parseFloat(tx.amount);
-  if (tx.partyType === "customer") {
-    const delta = tx.direction === "in" ? amt : -amt;
-    await db.execute(sql`UPDATE customers SET balance = balance + ${delta} WHERE id = ${tx.partyId}`);
-  } else if (tx.partyType === "supplier") {
-    const delta = tx.direction === "out" ? amt : -amt;
-    await db.execute(sql`UPDATE suppliers SET balance = balance + ${delta} WHERE id = ${tx.partyId}`);
-  }
+  // Reverse: opposite sign of what was applied on create
+  const delta = tx.partyType === "customer"
+    ? -customerDelta(tx.direction, amt)
+    : -supplierDelta(tx.direction, amt);
 
-  await db.delete(cashTransactionsTable).where(eq(cashTransactionsTable.id, id));
+  await db.transaction(async (trx) => {
+    await applyBalanceDelta(trx, tx.partyType, tx.partyId, delta);
+    await trx.delete(cashTransactionsTable).where(eq(cashTransactionsTable.id, id));
+  });
+
   res.json({ ok: true });
 });
 
