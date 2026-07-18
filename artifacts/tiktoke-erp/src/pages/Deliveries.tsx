@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmt, fmtDate, payLabel, exportXlsx, today, monthAgo } from "@/lib/api";
+import { apiFetch, fmt, fmtDate, payLabel, today, monthAgo } from "@/lib/api";
+import { xlDeliveries, xlRmReceiptDetail as xlDeliveryDetail } from "@/lib/excel";
 import { getCompanyInfo } from "./Settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -181,11 +182,8 @@ export default function Deliveries() {
           <p className="text-sm text-muted-foreground mt-0.5">{deliveries.length} ta hujjat</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => exportXlsx(
-            deliveries.map((d) => ({
-              "Raqam": d.deliveryNumber, "Sana": d.date, "Klient": d.customerName || "",
-              "To'lov": payLabel(d.paymentMethod || "cash"), "Summa": d.totalAmount,
-            })), `yuk-chiqarish-${startDate}-${endDate}.xlsx`
+          <Button variant="outline" className="gap-2" onClick={() => xlDeliveries(
+            deliveries, startDate, endDate, `yuk-chiqarish-${startDate}-${endDate}.xlsx`
           )}>
             <Download className="w-4 h-4" /> Excel
           </Button>
@@ -427,12 +425,17 @@ export default function Deliveries() {
                 </Table>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" className="gap-2" onClick={() => exportXlsx(
-                  detail.items.map((it, i) => ({
-                    "№": i + 1, "Mahsulot": it.productName, "Kod": it.productCode || "",
-                    "Miqdor": it.quantity, "Birlik": it.unitShort || "",
-                    "Narxi": it.unitPrice, "Chegirma %": it.discountPercent, "Jami": it.totalPrice,
-                  })), `${detail.deliveryNumber}.xlsx`)}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={() =>
+                  xlDeliveryDetail({
+                    receiptNumber: detail.deliveryNumber, date: detail.date,
+                    supplierName: detail.customerName ?? "",
+                    items: detail.items.map((it: any) => ({
+                      rawMaterialName: it.productName, rawMaterialCode: it.productCode ?? "",
+                      unitShort: it.unitShort ?? "", quantity: it.quantity,
+                      unitPrice: it.unitPrice, totalPrice: it.totalPrice,
+                    })),
+                  }, `${detail.deliveryNumber}.xlsx`)
+                }>
                   <Download className="w-4 h-4" /> Excel
                 </Button>
                 <Button size="sm" className="gap-2" onClick={handlePrint}>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmt, fmtDate, today, exportXlsx } from "@/lib/api";
+import { apiFetch, fmt, fmtDate, today } from "@/lib/api";
+import { xlAdjustments } from "@/lib/excel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,11 +149,10 @@ export default function Adjustments() {
           <p className="text-sm text-muted-foreground mt-0.5">Qoldiqlarni qo'lda tuzatish</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportXlsx(
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => xlAdjustments(
             adjustments.map((a) => ({
-              "Turi": a.type === "product" ? "Mahsulot" : "Hom ashyo",
-              "Nomi": a.itemName, "Miqdor": a.quantity, "Birlik": a.unitShort,
-              "Sabab": a.reason || "", "Sana": a.date,
+              date: a.date, type: a.type === "product" ? "Mahsulot" : "Hom ashyo",
+              name: a.itemName, quantity: a.quantity, unit: a.unitShort, reason: a.reason || "",
             })), `korrektirovka-${today()}.xlsx`)}>
             <Download className="w-4 h-4" /> Excel
           </Button>

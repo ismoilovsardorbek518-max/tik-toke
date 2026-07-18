@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmt, fmtDate, payLabel, exportXlsx, today, monthAgo } from "@/lib/api";
+import { apiFetch, fmt, fmtDate, payLabel, today, monthAgo } from "@/lib/api";
+import { xlKassaTxs, xlKassaReport, xlSverka } from "@/lib/excel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -194,15 +195,7 @@ export default function Kassa() {
               </div>
             </div>
             <Button variant="outline" size="sm" className="gap-2" onClick={() =>
-              exportXlsx(txs.map((t) => ({
-                "Sana": t.date,
-                "Tur": t.partyType === "customer" ? "Mijoz" : "Yetkazuvchi",
-                "Nomi": t.partyName,
-                "Yo'nalish": t.direction === "in" ? "Kirim" : "Chiqim",
-                "Summa (so'm)": t.amount,
-                "To'lov turi": payLabel(t.paymentMethod),
-                "Izoh": t.note ?? "",
-              })), `kassa-tranzaksiyalar-${startDate}-${endDate}.xlsx`)
+              xlKassaTxs(txs, startDate, endDate, `kassa-tranzaksiyalar-${startDate}-${endDate}.xlsx`)
             }>
               <Download className="w-4 h-4" /> Excel
             </Button>
@@ -360,23 +353,7 @@ export default function Kassa() {
               <Button variant="outline" size="sm" onClick={() => { setRptStart(monthAgo()); setRptEnd(today()); }}>Oxirgi oy</Button>
             </div>
             <Button variant="outline" size="sm" className="gap-2" onClick={() =>
-              exportXlsx([
-                { "": "KASSA HISOBOTI", "Davr": `${rptStart} — ${rptEnd}` },
-                {},
-                { "": "Jami kirim:", "Davr": rptIn },
-                { "": "Jami chiqim:", "Davr": rptOut },
-                { "": "Sof balans:", "Davr": rptIn - rptOut },
-                {},
-                ...rptTxs.map((t) => ({
-                  "Sana": t.date,
-                  "Tur": t.partyType === "customer" ? "Mijoz" : "Yetkazuvchi",
-                  "Nomi": t.partyName,
-                  "Yo'nalish": t.direction === "in" ? "Kirim" : "Chiqim",
-                  "Summa (so'm)": t.amount,
-                  "To'lov turi": payLabel(t.paymentMethod),
-                  "Izoh": t.note ?? "",
-                }))
-              ], `kassa-hisobot-${rptStart}-${rptEnd}.xlsx`)
+              xlKassaReport(rptTxs, rptStart, rptEnd, rptIn, rptOut, `kassa-hisobot-${rptStart}-${rptEnd}.xlsx`)
             }>
               <Download className="w-4 h-4" /> Excel
             </Button>
@@ -580,16 +557,9 @@ export default function Kassa() {
                 </div>
 
                 {/* Excel export */}
-                <Button variant="outline" size="sm" className="gap-2" onClick={() => {
-                  exportXlsx(sverka.transactions.map((r) => ({
-                    "Sana": r.date,
-                    "Tur": r.kind === "delivery" ? "Yuk chiqarish" : r.kind === "receipt" ? "Xom ashyo kirim" : "To'lov",
-                    "Tavsif": r.description,
-                    "Qarz (debit)": r.debit || "",
-                    "To'lov (kredit)": r.credit || "",
-                    "Joriy qoldiq": r.runningBalance,
-                  })), `sverka-${sverka.partyName}-${today()}.xlsx`);
-                }}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={() =>
+                  xlSverka(sverka, `sverka-${sverka.partyName}-${today()}.xlsx`)
+                }>
                   <Download className="w-4 h-4" /> Excel
                 </Button>
 

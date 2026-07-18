@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmt, fmtDate, payLabel, exportXlsx, today, monthAgo } from "@/lib/api";
+import { apiFetch, fmt, fmtDate, payLabel, today, monthAgo } from "@/lib/api";
+import { xlReportRmReceipts, xlReportProductions, xlReportDeliveries, xlReportProfit, xlWeeklyPlan as xlReportPlan } from "@/lib/excel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -194,12 +195,10 @@ export default function Reports() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" size="sm" className="gap-2 ml-auto" onClick={() => exportXlsx(
-              rmRows.map((r) => ({
-                "Raqam": r.receiptNumber, "Sana": r.date, "Yetkazuvchi": r.supplierName || "",
-                "Hom ashyo": r.rawMaterialName || "", "Miqdor": r.quantity, "Birlik": r.unitShort || "",
-                "Narxi": r.unitPrice, "Jami": r.totalPrice,
-              })), `hom-ashyo-kirim-hisobot-${startDate}-${endDate}.xlsx`)}>
+            <Button variant="outline" size="sm" className="gap-2 ml-auto" onClick={() => xlReportRmReceipts(
+              rmRows.map((r) => ({ receiptNumber: r.receiptNumber, date: r.date, supplierName: r.supplierName || "",
+                rawMaterialName: r.rawMaterialName || "", quantity: r.quantity, unit: r.unitShort || "",
+                unitPrice: r.unitPrice, total: r.totalPrice })), startDate, endDate)}>
               <Download className="w-4 h-4" /> Excel yuklab olish
             </Button>
           </div>
@@ -274,12 +273,10 @@ export default function Reports() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" size="sm" className="gap-2 ml-auto" onClick={() => exportXlsx(
-              prodRows.map((r) => ({
-                "Raqam": r.productionNumber, "Sana": r.date,
-                "Mahsulot": r.productName || "", "Miqdor": r.quantity, "Birlik": r.unitShort || "",
-                "Kirim narxi": r.unitCost, "Tannarx jami": r.totalCost,
-              })), `ishlab-chiqarish-hisobot-${startDate}-${endDate}.xlsx`)}>
+            <Button variant="outline" size="sm" className="gap-2 ml-auto" onClick={() => xlReportProductions(
+              prodRows.map((r) => ({ productionNumber: r.productionNumber, date: r.date,
+                productName: r.productName || "", quantity: r.quantity, unit: r.unitShort || "",
+                costTotal: r.totalCost })), startDate, endDate)}>
               <Download className="w-4 h-4" /> Excel yuklab olish
             </Button>
           </div>
@@ -394,13 +391,12 @@ export default function Reports() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline" size="sm" className="gap-2 ml-auto" onClick={() => exportXlsx(
-              delivRows.map((r) => ({
-                "Raqam": r.deliveryNumber, "Sana": r.date, "Klient": r.customerName || "",
-                "To'lov": payLabel(r.paymentMethod || "cash"), "Mahsulot": r.productName || "",
-                "Miqdor": r.quantity, "Birlik": r.unitShort || "", "Narxi": r.unitPrice,
-                "Chegirma %": r.discountPercent, "Jami": r.totalPrice,
-              })), `yuk-chiqarish-hisobot-${startDate}-${endDate}.xlsx`)}>
+            <Button variant="outline" size="sm" className="gap-2 ml-auto" onClick={() => xlReportDeliveries(
+              delivRows.map((r) => ({ deliveryNumber: r.deliveryNumber, date: r.date,
+                customerName: r.customerName || "", paymentMethod: payLabel(r.paymentMethod || "cash"),
+                productName: r.productName || "", quantity: r.quantity, unit: r.unitShort || "",
+                unitPrice: r.unitPrice, discountPercent: r.discountPercent, total: r.totalPrice,
+              })), startDate, endDate)}>
               <Download className="w-4 h-4" /> Excel yuklab olish
             </Button>
           </div>
@@ -476,11 +472,10 @@ export default function Reports() {
         <TabsContent value="profit" className="mt-4 space-y-4">
           <FilterRow />
           <div className="flex justify-end">
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => exportXlsx(
-              profitRows.map((r) => ({
-                "Mahsulot": r.productName || "", "Sotilgan miqdor": r.quantitySold,
-                "Tushum": r.revenue, "Tannarx": r.cost, "Foyda": r.profit,
-              })), `foyda-hisobot-${startDate}-${endDate}.xlsx`)}>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => xlReportProfit(
+              profitRows.map((r) => ({ product: r.productName || "", qty: r.quantitySold,
+                revenue: r.revenue, cost: r.cost, profit: r.profit,
+              })), startDate, endDate)}>
               <Download className="w-4 h-4" /> Excel yuklab olish
             </Button>
           </div>
@@ -569,13 +564,11 @@ export default function Reports() {
             </span>
             <Button
               variant="outline" size="sm" className="gap-2 ml-auto"
-              onClick={() => exportXlsx(
-                (productionPlan?.planRows ?? []).map((r) => ({
-                  "Mahsulot": r.productName || "", "Birlik": r.unitShort || "",
-                  "O'rtacha haftalik sotuv": r.avgWeeklySales,
-                  "Joriy qoldiq": r.currentStock,
-                  "Tavsiya etilgan ishlab chiqarish": r.recommendedProduction,
-                })), `haftalik-reja-${planWeeks}hafta.xlsx`)}>
+              onClick={() => xlReportPlan(
+                (productionPlan?.planRows ?? []).map((r: any) => ({
+                  weekStart: productionPlan?.startDate ?? "", productCode: "", productName: r.productName || "",
+                  unitShort: r.unitShort || "", plannedQuantity: r.recommendedProduction, note: `O'rtacha sotuv: ${r.avgWeeklySales}, Qoldiq: ${r.currentStock}`,
+                })), productionPlan?.startDate ?? "", `haftalik-reja-${planWeeks}hafta.xlsx`)}>
               <Download className="w-4 h-4" /> Excel
             </Button>
           </div>

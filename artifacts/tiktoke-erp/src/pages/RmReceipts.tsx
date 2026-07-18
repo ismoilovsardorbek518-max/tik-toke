@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmt, fmtDate, exportXlsx, today, monthAgo } from "@/lib/api";
+import { apiFetch, fmt, fmtDate, today, monthAgo } from "@/lib/api";
+import { xlRmReceipts, xlRmReceiptDetail } from "@/lib/excel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -140,13 +141,7 @@ export default function RmReceipts() {
   };
 
   const handleExport = () => {
-    exportXlsx(
-      receipts.map((r) => ({
-        "Raqam": r.receiptNumber, "Sana": r.date,
-        "Yetkazib beruvchi": r.supplierName || "", "Summa": r.totalAmount, "Izoh": r.note || "",
-      })),
-      `hom-ashyo-kirim-${startDate}-${endDate}.xlsx`
-    );
+    xlRmReceipts(receipts, startDate, endDate, `hom-ashyo-kirim-${startDate}-${endDate}.xlsx`);
   };
 
   return (
@@ -374,11 +369,7 @@ export default function RmReceipts() {
               </div>
               <div className="flex justify-end">
                 <Button variant="outline" size="sm" className="gap-2" onClick={() => {
-                  exportXlsx(detail.items.map((it) => ({
-                    "Hom ashyo": it.rawMaterialName, "Kod": it.rawMaterialCode || "",
-                    "Miqdor": it.quantity, "Birlik": it.unitShort || "",
-                    "Narxi": it.unitPrice, "Jami": it.totalPrice,
-                  })), `${detail.receiptNumber}.xlsx`);
+                  xlRmReceiptDetail(detail, `${detail.receiptNumber}.xlsx`);
                 }}>
                   <Download className="w-4 h-4" /> Excel
                 </Button>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmt, exportXlsx } from "@/lib/api";
+import { apiFetch, fmt } from "@/lib/api";
+import { xlProducts } from "@/lib/excel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -135,11 +136,7 @@ export default function Products() {
           <p className="text-sm text-muted-foreground mt-0.5">{products.length} ta tayyor mahsulot</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportXlsx(
-            filtered.map((p) => ({
-              "Kod": p.code || "", "Nomi": p.name, "Birlik": p.unitName || "",
-              "Og'irligi (kg)": p.weight || "", "Narxi (so'm)": p.sellingPrice, "Qoldiq": p.stock,
-            })), `mahsulotlar-${new Date().toISOString().split("T")[0]}.xlsx`)}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => xlProducts(filtered, `mahsulotlar-${new Date().toISOString().split("T")[0]}.xlsx`)}>
             <Download className="w-4 h-4" /> Excel
           </Button>
           <Button onClick={openCreate} className="gap-2">

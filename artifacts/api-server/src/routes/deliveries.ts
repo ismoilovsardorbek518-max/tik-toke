@@ -10,18 +10,14 @@ import {
 import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
-const addCustomerDebt = (customerId: number, amount: number) =>
-  db.execute(sql`UPDATE customers SET balance = balance + ${amount} WHERE id = ${customerId}`);
-
 const router = Router();
 
 // List deliveries with filters
 router.get("/deliveries", requireAuth, async (req, res): Promise<void> => {
   const { startDate, endDate, customerId } = req.query as Record<string, string>;
-
   const conditions: any[] = [];
   if (startDate) conditions.push(gte(deliveriesTable.date, startDate));
-  if (endDate) conditions.push(lte(deliveriesTable.date, endDate));
+  if (endDate)   conditions.push(lte(deliveriesTable.date, endDate));
   if (customerId) conditions.push(eq(deliveriesTable.customerId, parseInt(customerId)));
 
   const rows = await db
@@ -90,7 +86,7 @@ router.get("/deliveries/:id", requireAuth, async (req, res): Promise<void> => {
   res.json({ ...delivery, items });
 });
 
-// Create delivery
+// Create delivery — atomik transaksiya
 router.post("/deliveries", requireAuth, async (req, res): Promise<void> => {
   const { date, customerId, paymentMethod, note, items } = req.body;
   const user = (req as any).user;
@@ -102,47 +98,50 @@ router.post("/deliveries", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: "Klient tanlanishi shart" }); return;
   }
 
-  const count = await db.select({ c: sql<number>`count(*)` }).from(deliveriesTable);
-  const num = (Number(count[0].c) + 1).toString().padStart(5, "0");
-  const deliveryNumber = `YCH-${num}`;
-
   const totalAmount = items.reduce((s: number, it: any) => {
     const base = parseFloat(it.quantity) * parseFloat(it.unitPrice);
-    const discount = base * (parseFloat(it.discountPercent || "0") / 100);
-    return s + base - discount;
+    return s + base - base * (parseFloat(it.discountPercent || "0") / 100);
   }, 0);
 
-  const [delivery] = await db.insert(deliveriesTable).values({
-    deliveryNumber,
-    date,
-    customerId: customerId || null,
-    paymentMethod: paymentMethod || "cash",
-    note: note || null,
-    totalAmount: totalAmount.toFixed(2),
-    createdBy: user.userId,
-  }).returning();
+  const result = await db.transaction(async (trx) => {
+    const count = await trx.select({ c: sql<number>`count(*)` }).from(deliveriesTable);
+    const deliveryNumber = `YCH-${(Number(count[0].c) + 1).toString().padStart(5, "0")}`;
 
-  const itemRows = items.map((it: any) => {
-    const base = parseFloat(it.quantity) * parseFloat(it.unitPrice);
-    const disc = parseFloat(it.discountPercent || "0");
-    const total = base - base * (disc / 100);
-    return {
-      deliveryId: delivery.id,
-      productId: it.productId,
-      quantity: parseFloat(it.quantity).toFixed(3),
-      unitPrice: parseFloat(it.unitPrice).toFixed(2),
-      discountPercent: disc.toFixed(2),
-      totalPrice: total.toFixed(2),
-    };
+    const [delivery] = await trx.insert(deliveriesTable).values({
+      deliveryNumber, date,
+      customerId: parseInt(customerId),
+      paymentMethod: paymentMethod || "cash",
+      note: note || null,
+      totalAmount: totalAmount.toFixed(2),
+      createdBy: user.userId,
+    }).returning();
+
+    const itemRows = items.map((it: any) => {
+      const base = parseFloat(it.quantity) * parseFloat(it.unitPrice);
+      const disc = parseFloat(it.discountPercent || "0");
+      return {
+        deliveryId: delivery.id,
+        productId: it.productId,
+        quantity: parseFloat(it.quantity).toFixed(3),
+        unitPrice: parseFloat(it.unitPrice).toFixed(2),
+        discountPercent: disc.toFixed(2),
+        totalPrice: (base - base * (disc / 100)).toFixed(2),
+      };
+    });
+    await trx.insert(deliveryItemsTable).values(itemRows);
+
+    // Mijoz balansini oshir (qarz ko'paydi)
+    await trx.update(customersTable)
+      .set({ balance: sql`${customersTable.balance} + ${totalAmount.toFixed(2)}` })
+      .where(eq(customersTable.id, parseInt(customerId)));
+
+    return { ...delivery, items: itemRows };
   });
 
-  await db.insert(deliveryItemsTable).values(itemRows);
-  // Mijoz balansini oshir (qarz ko'paydi)
-  await addCustomerDebt(parseInt(customerId), totalAmount);
-  res.status(201).json({ ...delivery, items: itemRows });
+  res.status(201).json(result);
 });
 
-// Update delivery with items (edit a completed operation)
+// Update delivery — atomik transaksiya
 router.put("/deliveries/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const { date, customerId, paymentMethod, note, items } = req.body;
@@ -157,55 +156,68 @@ router.put("/deliveries/:id", requireAuth, async (req, res): Promise<void> => {
   const [existing] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, id));
   if (!existing) { res.status(404).json({ error: "Topilmadi" }); return; }
 
-  // Eski balansni qaytarib ol
-  if (existing.customerId) {
-    await addCustomerDebt(existing.customerId, -parseFloat(existing.totalAmount));
-  }
-
-  const totalAmount = items.reduce((s: number, it: any) => {
+  const newTotal = items.reduce((s: number, it: any) => {
     const base = parseFloat(it.quantity) * parseFloat(it.unitPrice);
-    const discount = base * (parseFloat(it.discountPercent || "0") / 100);
-    return s + base - discount;
+    return s + base - base * (parseFloat(it.discountPercent || "0") / 100);
   }, 0);
 
-  const [delivery] = await db.update(deliveriesTable).set({
-    date,
-    customerId: parseInt(customerId),
-    paymentMethod: paymentMethod || "cash",
-    note: note || null,
-    totalAmount: totalAmount.toFixed(2),
-  }).where(eq(deliveriesTable.id, id)).returning();
+  const result = await db.transaction(async (trx) => {
+    // Eski balansni qaytarib ol
+    if (existing.customerId) {
+      await trx.update(customersTable)
+        .set({ balance: sql`${customersTable.balance} - ${parseFloat(existing.totalAmount).toFixed(2)}` })
+        .where(eq(customersTable.id, existing.customerId));
+    }
 
-  await db.delete(deliveryItemsTable).where(eq(deliveryItemsTable.deliveryId, id));
+    const [delivery] = await trx.update(deliveriesTable).set({
+      date, customerId: parseInt(customerId),
+      paymentMethod: paymentMethod || "cash",
+      note: note || null,
+      totalAmount: newTotal.toFixed(2),
+    }).where(eq(deliveriesTable.id, id)).returning();
 
-  const itemRows = items.map((it: any) => {
-    const base = parseFloat(it.quantity) * parseFloat(it.unitPrice);
-    const disc = parseFloat(it.discountPercent || "0");
-    const total = base - base * (disc / 100);
-    return {
-      deliveryId: id,
-      productId: it.productId,
-      quantity: parseFloat(it.quantity).toFixed(3),
-      unitPrice: parseFloat(it.unitPrice).toFixed(2),
-      discountPercent: disc.toFixed(2),
-      totalPrice: total.toFixed(2),
-    };
+    await trx.delete(deliveryItemsTable).where(eq(deliveryItemsTable.deliveryId, id));
+
+    const itemRows = items.map((it: any) => {
+      const base = parseFloat(it.quantity) * parseFloat(it.unitPrice);
+      const disc = parseFloat(it.discountPercent || "0");
+      return {
+        deliveryId: id,
+        productId: it.productId,
+        quantity: parseFloat(it.quantity).toFixed(3),
+        unitPrice: parseFloat(it.unitPrice).toFixed(2),
+        discountPercent: disc.toFixed(2),
+        totalPrice: (base - base * (disc / 100)).toFixed(2),
+      };
+    });
+    await trx.insert(deliveryItemsTable).values(itemRows);
+
+    // Yangi balansni qo'sh
+    await trx.update(customersTable)
+      .set({ balance: sql`${customersTable.balance} + ${newTotal.toFixed(2)}` })
+      .where(eq(customersTable.id, parseInt(customerId)));
+
+    return { ...delivery, items: itemRows };
   });
 
-  await db.insert(deliveryItemsTable).values(itemRows);
-  // Yangi balansni qo'sh
-  await addCustomerDebt(parseInt(customerId), totalAmount);
-  res.json({ ...delivery, items: itemRows });
+  res.json(result);
 });
 
-// Delete delivery
+// Delete delivery — atomik transaksiya
 router.delete("/deliveries/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string);
   const [existing] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, id));
-  if (existing?.customerId) {
-    await addCustomerDebt(existing.customerId, -parseFloat(existing.totalAmount));
-  }
-  await db.delete(deliveriesTable).where(eq(deliveriesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Topilmadi" }); return; }
+
+  await db.transaction(async (trx) => {
+    if (existing.customerId) {
+      await trx.update(customersTable)
+        .set({ balance: sql`${customersTable.balance} - ${parseFloat(existing.totalAmount).toFixed(2)}` })
+        .where(eq(customersTable.id, existing.customerId));
+    }
+    await trx.delete(deliveriesTable).where(eq(deliveriesTable.id, id));
+  });
+
   res.json({ ok: true });
 });
 

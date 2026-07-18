@@ -1,8 +1,12 @@
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
-const ACCESS_SECRET = process.env.SESSION_SECRET ?? "tiktoke-access-secret-2024";
-const REFRESH_SECRET = process.env.REFRESH_SECRET ?? "tiktoke-refresh-secret-2024";
+if (!process.env.SESSION_SECRET) {
+  // Development'da ogohlantirish — production'da ishlamasligi kerak
+  console.warn("[AUTH] SESSION_SECRET o'rnatilmagan! Xavfsiz fallback ishlatilmoqda — production'da env o'rnating.");
+}
+const ACCESS_SECRET = process.env.SESSION_SECRET ?? `tiktoke-dev-only-${Math.random()}`;
+const REFRESH_SECRET = process.env.REFRESH_SECRET ?? `tiktoke-refresh-dev-${Math.random()}`;
 
 export interface JwtPayload {
   userId: number;

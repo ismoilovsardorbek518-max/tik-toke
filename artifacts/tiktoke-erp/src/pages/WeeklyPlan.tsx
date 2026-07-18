@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmt, exportXlsx, today } from "@/lib/api";
+import { apiFetch, fmt, today } from "@/lib/api";
+import { xlWeeklyPlan } from "@/lib/excel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -98,14 +99,7 @@ export default function WeeklyPlan() {
   };
 
   const handleExport = () => {
-    exportXlsx(plan.map((r) => ({
-      "Hafta": weekLabel(weekStart),
-      "Mahsulot kodi": r.productCode ?? "",
-      "Mahsulot nomi": r.productName,
-      "Birlik": r.unitShort ?? "",
-      "Reja (miqdor)": r.plannedQuantity,
-      "Izoh": r.note ?? "",
-    })), `haftalik-reja-${weekStart}.xlsx`);
+    xlWeeklyPlan(plan, weekStart, `haftalik-reja-${weekStart}.xlsx`);
   };
 
   const availableProducts = products.filter(

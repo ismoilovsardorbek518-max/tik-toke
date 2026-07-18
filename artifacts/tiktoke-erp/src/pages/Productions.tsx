@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, fmt, fmtDate, exportXlsx, today, monthAgo } from "@/lib/api";
+import { apiFetch, fmt, fmtDate, today, monthAgo } from "@/lib/api";
+import { xlProductions, xlProductionDetail } from "@/lib/excel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -149,11 +150,11 @@ export default function Productions() {
           <p className="text-sm text-muted-foreground mt-0.5">{productions.length} ta partiya</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => exportXlsx(
+          <Button variant="outline" className="gap-2" onClick={() => xlProductions(
             productions.flatMap((p) => p.outputs.map((o) => ({
-              "Raqam": p.productionNumber, "Sana": p.date,
-              "Mahsulot": o.productName, "Miqdor": o.quantity, "Birlik": o.unitShort || "",
-            }))), `ishlab-chiqarish-${startDate}-${endDate}.xlsx`
+              productionNumber: p.productionNumber, date: p.date,
+              productName: o.productName, quantity: o.quantity, unitShort: o.unitShort || "", note: "",
+            }))), startDate, endDate, `ishlab-chiqarish-${startDate}-${endDate}.xlsx`
           )}>
             <Download className="w-4 h-4" /> Excel
           </Button>
@@ -416,10 +417,7 @@ export default function Productions() {
               </div>
               <div className="flex justify-end">
                 <Button variant="outline" size="sm" className="gap-2" onClick={() => {
-                  exportXlsx([
-                    ...detail.outputs.map((o) => ({ Tur: "Mahsulot (chiqim)", Nomi: o.productName, Miqdor: o.quantity, Birlik: o.unitShort || "" })),
-                    ...detail.inputs.map((inp) => ({ Tur: "Hom ashyo (kirim)", Nomi: inp.rawMaterialName, Miqdor: inp.quantity, Birlik: inp.unitShort || "" })),
-                  ], `${detail.productionNumber}.xlsx`);
+                  xlProductionDetail(detail, `${detail.productionNumber}.xlsx`);
                 }}>
                   <Download className="w-4 h-4" /> Excel
                 </Button>

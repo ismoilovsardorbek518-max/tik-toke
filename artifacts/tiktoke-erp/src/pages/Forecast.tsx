@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch, fmt, exportXlsx } from "@/lib/api";
+import { apiFetch, fmt } from "@/lib/api";
+import { xlForecast } from "@/lib/excel";
 import { Download, TrendingUp, Package, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +58,15 @@ export default function Forecast() {
       "Ishlab chiqarish imkoni": p.maxPossibleUnits ?? 0,
       "Xom ashyo (formula)": p.recipe.map((r) => `${r.rawMaterialName}: ${r.quantityPerUnit} ${r.unitShort ?? ""}`).join("; "),
     }));
-    exportXlsx(rows, `prognoz-${new Date().toISOString().split("T")[0]}.xlsx`);
+    xlForecast(
+      withRecipe.map((p) => ({
+        productName: p.productName,
+        unit: p.unitShort ?? "",
+        canMake: p.maxPossibleUnits ?? 0,
+        recipe: p.recipe.map((r) => `${r.rawMaterialName}: ${r.quantityPerUnit} ${r.unitShort ?? ""}`).join("; "),
+      })),
+      `prognoz-${new Date().toISOString().split("T")[0]}.xlsx`
+    );
   };
 
   return (

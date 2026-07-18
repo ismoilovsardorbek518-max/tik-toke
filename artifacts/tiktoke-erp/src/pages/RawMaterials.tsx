@@ -19,7 +19,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Search, Pencil, Trash2, Package, Download } from "lucide-react";
-import { exportXlsx, today } from "@/lib/api";
+import { today } from "@/lib/api";
+import { xlRawMaterials } from "@/lib/excel";
 import { useToast } from "@/hooks/use-toast";
 
 interface RM {
@@ -90,10 +91,7 @@ export default function RawMaterials() {
           <p className="text-sm text-muted-foreground mt-0.5">{rms.length} ta hom ashyo</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => exportXlsx(
-            filtered.map((r) => ({
-              "Kod": r.code || "", "Nomi": r.name, "Birlik": r.unitName || "", "Qoldiq": r.stock,
-            })), `hom-ashyo-${today()}.xlsx`)}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => xlRawMaterials(filtered, `hom-ashyo-${today()}.xlsx`)}>
             <Download className="w-4 h-4" /> Excel
           </Button>
           <Button onClick={openCreate} className="gap-2">
