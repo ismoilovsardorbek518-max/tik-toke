@@ -36,7 +36,7 @@ app.listen(port, (err) => {
       fetch(pingUrl).catch(() => {
         // Jimgina o'tib ketadi — admin interfeysiga ta'sir qilmaydi
       });
-    }, 5 * 60 * 1000); // 5 daqiqa
-    logger.info({ pingUrl }, "Self-ping started (every 5 min)");
+    }, 2 * 60 * 1000); // 2 daqiqa
+    logger.info({ pingUrl }, "Self-ping started (every 2 min)");
   }
 });

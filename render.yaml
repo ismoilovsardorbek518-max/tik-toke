@@ -1,14 +1,54 @@
+# Render.com deployment konfiguratsiyasi
+# Batafsil: https://render.com/docs/blueprint-spec
+
 services:
+  # ─── 1. Backend: Express API ───────────────────────────────────────────────
   - type: web
-    name: tiktoke-erp
+    name: tiktoke-erp-api
     runtime: node
+    region: frankfurt          # Markaziy Osiyo uchun eng yaqin region
     plan: free
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @workspace/tiktoke-erp run build && pnpm --filter @workspace/api-server run build
-    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    rootDir: .
+    buildCommand: |
+      npm install -g pnpm &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @workspace/db exec tsc -b --force &&
+      pnpm --filter @workspace/api-server run build
+    startCommand: pnpm --filter @workspace/api-server run start
+    healthCheckPath: /api/healthz
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false
+        sync: false            # Render dashboard'dan qo'lda kiritiladi (Neon URL)
       - key: SESSION_SECRET
-        generateValue: true
+        generateValue: true    # Render avtomatik kuchli random qiymat yaratadi
+      - key: PORT
+        value: 10000
+
+  # ─── 2. Frontend: React/Vite static site ────────────────────────────────────
+  - type: web
+    name: tiktoke-erp-ui
+    runtime: static
+    region: frankfurt
+    plan: free
+    rootDir: .
+    buildCommand: |
+      npm install -g pnpm &&
+      pnpm install --frozen-lockfile &&
+      BASE_PATH=/ pnpm --filter @workspace/tiktoke-erp run build
+    staticPublishPath: ./artifacts/tiktoke-erp/dist/public
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE
+        fromService:
+          name: tiktoke-erp-api
+          type: web
+          property: host         # Render API xizmatining URL'ni avtomatik oladi

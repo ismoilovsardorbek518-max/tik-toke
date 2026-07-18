@@ -1,4 +1,7 @@
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+// Production (Render.com)da VITE_API_BASE = "https://your-api.onrender.com"
+// Development (Replit)da bo'sh — Vite proxy /api → localhost:8080
+const VITE_API_BASE: string = import.meta.env.VITE_API_BASE ?? "";
+const BASE = VITE_API_BASE || (import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "");
 
 export const apiUrl = (path: string) => `${BASE}/api${path}`;
 
