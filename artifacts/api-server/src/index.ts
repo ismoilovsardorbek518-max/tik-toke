@@ -1,4 +1,5 @@
 import app from "./app";
+import { pool } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { runStartupTasks } from "./startup";
 
@@ -27,16 +28,23 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 
-  // Render.com bepul tier'da server 15 daqiqa so'rovsiz "uxlaydi".
-  // Har 5 daqiqada o'ziga so'rov yuborib uxlamasligini ta'minlaymiz.
+  // Render.com bepul tier: har 2 daqiqada o'ziga ping — uxlamaslik uchun
   const selfUrl = process.env["RENDER_EXTERNAL_URL"];
   if (selfUrl) {
     const pingUrl = `${selfUrl}/api/healthz`;
     setInterval(() => {
-      fetch(pingUrl).catch(() => {
-        // Jimgina o'tib ketadi — admin interfeysiga ta'sir qilmaydi
-      });
-    }, 2 * 60 * 1000); // 2 daqiqa
+      fetch(pingUrl).catch(() => {});
+    }, 2 * 60 * 1000);
     logger.info({ pingUrl }, "Self-ping started (every 2 min)");
   }
+
+  // Neon DB bepul tier: har 4 daqiqada oddiy query — compute uxlamaslik uchun
+  setInterval(async () => {
+    try {
+      await pool.query("SELECT 1");
+    } catch {
+      // jimgina o'tib ketadi
+    }
+  }, 4 * 60 * 1000);
+  logger.info("DB keep-alive started (every 4 min)");
 });
