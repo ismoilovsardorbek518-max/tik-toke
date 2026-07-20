@@ -1,4 +1,5 @@
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
+import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { Layout } from '@/components/Layout';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -37,7 +38,11 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     if (!isAuthenticated) setLocation('/login');
   }, [isAuthenticated, setLocation]);
 
-  // Define route components at module level to avoid hook call issues
+  if (!isAuthenticated) return null;
+  return <Layout><Component /></Layout>;
+}
+
+// Define route components at module level to avoid hook call issues
 const ProtectedDashboard    = () => <ProtectedRoute component={Dashboard} />;
 const ProtectedRawMaterials = () => <ProtectedRoute component={RawMaterials} />;
 const ProtectedRmReceipts   = () => <ProtectedRoute component={RmReceipts} />;
@@ -84,9 +89,9 @@ export default function App() {
       <AuthProvider>
         <TooltipProvider>
           <ErrorBoundary>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <Router />
-          </WouterRouter>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <Router />
+            </WouterRouter>
           </ErrorBoundary>
           <Toaster richColors position="top-right" />
         </TooltipProvider>
