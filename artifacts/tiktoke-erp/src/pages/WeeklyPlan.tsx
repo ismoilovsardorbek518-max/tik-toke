@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmt, today } from "@/lib/api";
 import { xlWeeklyPlan } from "@/lib/excel";
@@ -12,7 +13,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Plus, Download, Trash2, ChevronLeft, ChevronRight, Pencil, Check, X } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface PlanRow {
   id: number;
@@ -51,7 +51,6 @@ function weekLabel(dateStr: string): string {
 
 export default function WeeklyPlan() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const [weekStart, setWeekStart] = useState(getMonday(new Date()));
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editQty, setEditQty] = useState("");
@@ -77,15 +76,15 @@ export default function WeeklyPlan() {
       qc.invalidateQueries({ queryKey: ["weekly-plan"] });
       setShowAdd(false); setAddProductId(""); setAddQty(""); setAddNote("");
       setEditingId(null);
-      toast({ title: "Saqlandi" });
+      toast.success("Saqlandi");
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/weekly-plan/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["weekly-plan"] }); toast({ title: "O'chirildi" }); },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["weekly-plan"] }); toast.success("O'chirildi"); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const startEdit = (row: PlanRow) => {

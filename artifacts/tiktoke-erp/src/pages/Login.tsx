@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { toast } from 'sonner';
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useLogin } from "@workspace/api-client-react";
@@ -17,7 +18,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Foydalanuvchi nomini kiriting"),
@@ -27,7 +27,6 @@ const loginSchema = z.object({
 export default function Login() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
-  const { toast } = useToast();
   
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -46,19 +45,12 @@ export default function Login() {
         onSuccess: (data) => {
           if (data.accessToken && data.user) {
             login(data.accessToken, data.user);
-            toast({
-              title: "Tizimga kirish muvaffaqiyatli",
-              description: "Xush kelibsiz!",
-            });
+            toast.success("Xush kelibsiz!");
             setLocation("/");
           }
         },
         onError: () => {
-          toast({
-            title: "Xatolik",
-            description: "Foydalanuvchi nomi yoki parol noto'g'ri",
-            variant: "destructive",
-          });
+          toast.error("Foydalanuvchi nomi yoki parol noto'g'ri");
         },
       }
     );

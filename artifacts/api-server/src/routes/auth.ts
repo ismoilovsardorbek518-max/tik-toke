@@ -95,7 +95,7 @@ router.post("/auth/change-password", requireAuth, async (req, res): Promise<void
   if (!dbUser) { res.status(404).json({ error: "Foydalanuvchi topilmadi" }); return; }
   const valid = await bcrypt.compare(oldPassword, dbUser.passwordHash);
   if (!valid) { res.status(401).json({ error: "Joriy parol noto'g'ri" }); return; }
-  const hash = await bcrypt.hash(newPassword, 10);
+  const hash = await bcrypt.hash(newPassword, 8);
   await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, dbUser.id));
   res.json({ ok: true });
 });

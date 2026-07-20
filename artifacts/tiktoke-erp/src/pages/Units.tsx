@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from 'sonner';
 import { 
   useGetUnits,
   useCreateUnit,
@@ -26,7 +27,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetUnitsQueryKey } from "@workspace/api-client-react";
@@ -37,7 +37,6 @@ export default function Units() {
   const [formData, setFormData] = useState<UnitInput>({ name: "", shortName: "" });
   
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const { data: units, isLoading } = useGetUnits();
   const createMutation = useCreateUnit();
@@ -57,7 +56,7 @@ export default function Units() {
 
   const handleSubmit = () => {
     if (!formData.name || !formData.shortName) {
-      toast({ title: "Xatolik", description: "Barcha maydonlarni to'ldiring", variant: "destructive" });
+      toast.error("Barcha maydonlarni to'ldiring");
       return;
     }
 
@@ -67,7 +66,7 @@ export default function Units() {
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetUnitsQueryKey() });
-            toast({ title: "Muvaffaqiyatli", description: "Birlik yangilandi" });
+            toast.success("Muvaffaqiyatli — Birlik yangilandi");
             setIsModalOpen(false);
           }
         }
@@ -78,7 +77,7 @@ export default function Units() {
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetUnitsQueryKey() });
-            toast({ title: "Muvaffaqiyatli", description: "Birlik yaratildi" });
+            toast.success("Muvaffaqiyatli — Birlik yaratildi");
             setIsModalOpen(false);
           }
         }
@@ -93,7 +92,7 @@ export default function Units() {
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetUnitsQueryKey() });
-            toast({ title: "Muvaffaqiyatli", description: "Birlik o'chirildi" });
+            toast.success("Muvaffaqiyatli — Birlik o'chirildi");
           }
         }
       );

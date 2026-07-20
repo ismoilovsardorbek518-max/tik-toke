@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { flushSync } from 'react-dom';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -15,14 +17,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Search, Pencil, Trash2, Users } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface Client { id: number; name: string; phone: string | null; email: string | null; address: string | null; }
 const emptyForm = { name: "", phone: "", email: "", address: "" };
 
 export default function Clients() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
@@ -40,17 +40,17 @@ export default function Clients() {
         ? apiFetch(`/customers/${editing.id}`, { method: "PUT", body: JSON.stringify(body) })
         : apiFetch("/customers", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["customers"] });
-      setSheetOpen(false);
-      toast({ title: editing ? "Yangilandi" : "Qo'shildi" });
+      flushSync(() => setSheetOpen(false));
+      toast.success(editing ? "Yangilandi" : "Qo'shildi");
+      setTimeout(() => { qc.invalidateQueries({ queryKey: ["customers"] }); }, 0);
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/customers/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast({ title: "O'chirildi" }); },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["customers"] }); toast.success("O'chirildi"); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setSheetOpen(true); };

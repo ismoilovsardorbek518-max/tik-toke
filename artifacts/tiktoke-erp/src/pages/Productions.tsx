@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { flushSync } from 'react-dom';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmt, fmtDate, today, monthAgo } from "@/lib/api";
 import { xlProductions, xlProductionDetail } from "@/lib/excel";
@@ -23,7 +25,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Eye, Pencil, Download, Factory, X } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface Product { id: number; name: string; code: string | null; unitShort: string | null; }
 interface RM { id: number; name: string; code: string | null; unitShort: string | null; }
@@ -50,7 +51,6 @@ const newIn = (): InLine => ({ rawMaterialId: "", quantity: "" });
 
 export default function Productions() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const [startDate, setStartDate] = useState(monthAgo());
   const [endDate, setEndDate] = useState(today());
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -89,14 +89,16 @@ export default function Productions() {
       ? apiFetch(`/productions/${editId}`, { method: "PUT", body: JSON.stringify(body) })
       : apiFetch("/productions", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["productions"] });
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["raw-materials"] });
-      setSheetOpen(false);
+      flushSync(() => setSheetOpen(false));
       resetForm();
-      toast({ title: editId ? "Ishlab chiqarish yangilandi" : "Ishlab chiqarish saqlandi" });
+      toast.success(editId ? "Ishlab chiqarish yangilandi" : "Ishlab chiqarish saqlandi");
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["productions"] });
+        qc.invalidateQueries({ queryKey: ["products"] });
+        qc.invalidateQueries({ queryKey: ["raw-materials"] });
+      }, 0);
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
@@ -105,9 +107,9 @@ export default function Productions() {
       qc.invalidateQueries({ queryKey: ["productions"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["raw-materials"] });
-      toast({ title: "O'chirildi" });
+      toast.success("O'chirildi");
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const resetForm = () => {
@@ -119,7 +121,7 @@ export default function Productions() {
 
   const handleSave = () => {
     if (!date || validOuts.length === 0) {
-      toast({ title: "Sana va kamida 1 ta mahsulot kerak", variant: "destructive" }); return;
+      toast.error("Sana va kamida 1 ta mahsulot kerak"); return;
     }
     saveMutation.mutate({
       date, note: note || null,

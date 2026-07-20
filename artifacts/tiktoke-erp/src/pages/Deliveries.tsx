@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { flushSync } from 'react-dom';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmt, fmtDate, payLabel, today, monthAgo } from "@/lib/api";
 import { xlDeliveries, xlRmReceiptDetail as xlDeliveryDetail } from "@/lib/excel";
@@ -24,7 +26,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Eye, Pencil, Download, Truck, X, Printer } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface Product { id: number; name: string; code: string | null; unitShort: string | null; sellingPrice: string; }
 interface Customer { id: number; name: string; phone: string | null; address: string | null; }
@@ -48,7 +49,6 @@ const newLine = (): LineItem => ({ productId: "", quantity: "", unitPrice: "", d
 
 export default function Deliveries() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const printRef = useRef<HTMLDivElement>(null);
 
   const [startDate, setStartDate] = useState(monthAgo());
@@ -94,13 +94,15 @@ export default function Deliveries() {
       ? apiFetch(`/deliveries/${editId}`, { method: "PUT", body: JSON.stringify(body) })
       : apiFetch("/deliveries", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["deliveries"] });
-      qc.invalidateQueries({ queryKey: ["products"] });
-      setSheetOpen(false);
+      flushSync(() => setSheetOpen(false));
       resetForm();
-      toast({ title: editId ? "Yuk chiqarish yangilandi" : "Yuk chiqarish saqlandi" });
+      toast.success(editId ? "Yuk chiqarish yangilandi" : "Yuk chiqarish saqlandi");
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["deliveries"] });
+        qc.invalidateQueries({ queryKey: ["products"] });
+      }, 0);
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
@@ -108,9 +110,9 @@ export default function Deliveries() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deliveries"] });
       qc.invalidateQueries({ queryKey: ["products"] });
-      toast({ title: "O'chirildi" });
+      toast.success("O'chirildi");
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const resetForm = () => { setEditId(null); setDate(today()); setCustomerId(""); setPaymentMethod("cash"); setNote(""); setLines([newLine()]); };
@@ -151,10 +153,10 @@ export default function Deliveries() {
 
   const handleSave = () => {
     if (!date || validLines.length === 0) {
-      toast({ title: "Sana va kamida 1 ta mahsulot kerak", variant: "destructive" }); return;
+      toast.error("Sana va kamida 1 ta mahsulot kerak"); return;
     }
     if (!customerId) {
-      toast({ title: "Klientni tanlang", variant: "destructive" }); return;
+      toast.error("Klientni tanlang"); return;
     }
     saveMutation.mutate({
       date, customerId: parseInt(customerId), paymentMethod, note: note || null,

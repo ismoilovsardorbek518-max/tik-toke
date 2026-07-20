@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { flushSync } from 'react-dom';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmt, fmtDate, today, monthAgo } from "@/lib/api";
 import { xlRmReceipts, xlRmReceiptDetail } from "@/lib/excel";
@@ -22,7 +24,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Eye, Pencil, Download, ArrowDownToLine, X } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface RM { id: number; name: string; code: string | null; unitShort: string | null; }
 interface Supplier { id: number; name: string; }
@@ -42,7 +43,6 @@ const newLine = (): LineItem => ({ rawMaterialId: "", quantity: "", unitPrice: "
 
 export default function RmReceipts() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const [startDate, setStartDate] = useState(monthAgo());
   const [endDate, setEndDate] = useState(today());
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -82,13 +82,15 @@ export default function RmReceipts() {
       ? apiFetch(`/rm-receipts/${editId}`, { method: "PUT", body: JSON.stringify(body) })
       : apiFetch("/rm-receipts", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["rm-receipts"] });
-      qc.invalidateQueries({ queryKey: ["raw-materials"] });
-      setSheetOpen(false);
+      flushSync(() => setSheetOpen(false));
       resetForm();
-      toast({ title: editId ? "Kirim hujjati yangilandi" : "Kirim hujjati saqlandi" });
+      toast.success(editId ? "Kirim hujjati yangilandi" : "Kirim hujjati saqlandi");
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["rm-receipts"] });
+        qc.invalidateQueries({ queryKey: ["raw-materials"] });
+      }, 0);
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
@@ -96,9 +98,9 @@ export default function RmReceipts() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rm-receipts"] });
       qc.invalidateQueries({ queryKey: ["raw-materials"] });
-      toast({ title: "O'chirildi" });
+      toast.success("O'chirildi");
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const resetForm = () => { setEditId(null); setDate(today()); setSupplierId(""); setNote(""); setLines([newLine()]); };
@@ -126,10 +128,10 @@ export default function RmReceipts() {
 
   const handleSave = () => {
     if (!date || validLines.length === 0) {
-      toast({ title: "Sana va kamida 1 ta mahsulot kerak", variant: "destructive" }); return;
+      toast.error("Sana va kamida 1 ta mahsulot kerak"); return;
     }
     if (!supplierId) {
-      toast({ title: "Yetkazib beruvchini tanlang", variant: "destructive" }); return;
+      toast.error("Yetkazib beruvchini tanlang"); return;
     }
     saveMutation.mutate({
       date, supplierId: parseInt(supplierId), note: note || null,

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from 'sonner';
 import { 
   useGetSuppliers,
   useCreateSupplier,
@@ -26,7 +27,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,7 +41,6 @@ export default function Suppliers() {
   });
   
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const { data: suppliers, isLoading } = useGetSuppliers({ search: search || undefined });
   const createMutation = useCreateSupplier();
@@ -66,7 +65,7 @@ export default function Suppliers() {
 
   const handleSubmit = () => {
     if (!formData.name) {
-      toast({ title: "Xatolik", description: "Nom kiritilishi shart", variant: "destructive" });
+      toast.error("Nom kiritilishi shart");
       return;
     }
 
@@ -76,7 +75,7 @@ export default function Suppliers() {
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetSuppliersQueryKey() });
-            toast({ title: "Muvaffaqiyatli", description: "Ma'lumotlar yangilandi" });
+            toast.success("Muvaffaqiyatli — Ma'lumotlar yangilandi");
             setIsModalOpen(false);
           }
         }
@@ -87,7 +86,7 @@ export default function Suppliers() {
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetSuppliersQueryKey() });
-            toast({ title: "Muvaffaqiyatli", description: "Yangi kontragent qo'shildi" });
+            toast.success("Muvaffaqiyatli — Yangi kontragent qo'shildi");
             setIsModalOpen(false);
           }
         }
@@ -102,7 +101,7 @@ export default function Suppliers() {
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getGetSuppliersQueryKey() });
-            toast({ title: "Muvaffaqiyatli", description: "Ma'lumot o'chirildi" });
+            toast.success("Muvaffaqiyatli — Ma'lumot o'chirildi");
           }
         }
       );

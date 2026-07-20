@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { flushSync } from 'react-dom';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmt, fmtDate, payLabel, today, monthAgo } from "@/lib/api";
 import { xlKassaTxs, xlKassaReport, xlSverka } from "@/lib/excel";
@@ -23,7 +25,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Download, Trash2, Scale, TrendingUp, TrendingDown, Wallet, ArrowUp, ArrowDown, Truck } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -52,7 +53,6 @@ const empty = {
 
 export default function Kassa() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const [tab, setTab] = useState("transactions");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [form, setForm] = useState(empty);
@@ -100,15 +100,17 @@ export default function Kassa() {
   const saveMutation = useMutation({
     mutationFn: (body: object) => apiFetch("/kassa", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["kassa"] });
-      qc.invalidateQueries({ queryKey: ["kassa-rpt"] });
-      qc.invalidateQueries({ queryKey: ["kassa-balances"] });
-      qc.invalidateQueries({ queryKey: ["sverka"] });
-      setSheetOpen(false);
+      flushSync(() => setSheetOpen(false));
       setForm(empty);
-      toast({ title: "Tranzaksiya saqlandi" });
+      toast.success("Tranzaksiya saqlandi");
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["kassa"] });
+        qc.invalidateQueries({ queryKey: ["kassa-rpt"] });
+        qc.invalidateQueries({ queryKey: ["kassa-balances"] });
+        qc.invalidateQueries({ queryKey: ["sverka"] });
+      }, 0);
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
@@ -117,16 +119,16 @@ export default function Kassa() {
       qc.invalidateQueries({ queryKey: ["kassa"] });
       qc.invalidateQueries({ queryKey: ["kassa-rpt"] });
       qc.invalidateQueries({ queryKey: ["kassa-balances"] });
-      toast({ title: "O'chirildi" });
+      toast.success("O'chirildi");
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const parties = form.partyType === "customer" ? customers : suppliers;
 
   const handleSave = () => {
     if (!form.partyId || !form.amount || !form.date) {
-      toast({ title: "Xato", description: "Barcha maydonlarni to'ldiring", variant: "destructive" }); return;
+      toast.error("Barcha maydonlarni to'ldiring"); return;
     }
     saveMutation.mutate(form);
   };

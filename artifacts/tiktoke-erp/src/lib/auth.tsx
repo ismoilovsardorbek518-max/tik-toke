@@ -1,5 +1,5 @@
 import { AuthUser, setAuthTokenGetter } from "@workspace/api-client-react";
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -7,35 +7,23 @@ interface AuthContextType {
   login: (token: string, user: AuthUser) => void;
   logout: () => void;
   isAuthenticated: boolean;
-  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    try {
+      const s = localStorage.getItem("tiktoke_user");
+      return s ? JSON.parse(s) : null;
+    } catch { return null; }
+  });
 
-  useEffect(() => {
-    // Try to restore from local storage
-    const storedToken = localStorage.getItem("tiktoke_token");
-    const storedUser = localStorage.getItem("tiktoke_user");
-
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        
-        // Register token getter for custom-fetch
-        setAuthTokenGetter(() => storedToken);
-      } catch (e) {
-        console.error("Failed to parse user from local storage");
-      }
-    }
-    
-    setIsLoading(false);
-  }, []);
+  const [token, setToken] = useState<string | null>(() => {
+    const t = localStorage.getItem("tiktoke_token");
+    if (t) setAuthTokenGetter(() => t);
+    return t;
+  });
 
   const login = (newToken: string, newUser: AuthUser) => {
     setToken(newToken);
@@ -54,25 +42,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        login,
-        logout,
-        isAuthenticated: !!token,
-        isLoading,
-      }}
-    >
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
+  return ctx;
 }

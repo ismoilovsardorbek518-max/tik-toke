@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { flushSync } from 'react-dom';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmt } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -21,7 +23,6 @@ import {
 import { Plus, Search, Pencil, Trash2, Package, Download } from "lucide-react";
 import { today } from "@/lib/api";
 import { xlRawMaterials } from "@/lib/excel";
-import { useToast } from "@/hooks/use-toast";
 
 interface RM {
   id: number; code: string | null; name: string;
@@ -34,7 +35,6 @@ const emptyForm = { code: "", name: "", unitId: "", description: "" };
 
 export default function RawMaterials() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<RM | null>(null);
@@ -57,17 +57,17 @@ export default function RawMaterials() {
         ? apiFetch(`/raw-materials/${editing.id}`, { method: "PUT", body: JSON.stringify(body) })
         : apiFetch("/raw-materials", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["raw-materials"] });
-      setSheetOpen(false);
-      toast({ title: editing ? "Yangilandi" : "Qo'shildi" });
+      flushSync(() => setSheetOpen(false));
+      toast.success(editing ? "Yangilandi" : "Qo'shildi");
+      setTimeout(() => { qc.invalidateQueries({ queryKey: ["raw-materials"] }); }, 0);
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/raw-materials/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["raw-materials"] }); toast({ title: "O'chirildi" }); },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["raw-materials"] }); toast.success("O'chirildi"); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setSheetOpen(true); };

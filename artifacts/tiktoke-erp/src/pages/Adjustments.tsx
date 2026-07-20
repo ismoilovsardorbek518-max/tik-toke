@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmt, fmtDate, today } from "@/lib/api";
 import { xlAdjustments } from "@/lib/excel";
@@ -21,7 +22,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Download, SlidersHorizontal } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 interface Adjustment {
   id: number;
@@ -40,7 +40,6 @@ const emptyForm = { type: "product" as "product" | "raw_material", itemId: "", q
 
 export default function Adjustments() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -61,14 +60,16 @@ export default function Adjustments() {
   const saveMutation = useMutation({
     mutationFn: (body: any) => apiFetch("/adjustments", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["adjustments"] });
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["raw-materials"] });
-      setSheetOpen(false);
+      flushSync(() => setSheetOpen(false));
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["adjustments"] });
+        qc.invalidateQueries({ queryKey: ["products"] });
+        qc.invalidateQueries({ queryKey: ["raw-materials"] });
+      }, 0);
       setForm(emptyForm);
-      toast({ title: "Korrektirovka qo'shildi" });
+      toast.success("Korrektirovka qo'shildi");
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
@@ -77,9 +78,9 @@ export default function Adjustments() {
       qc.invalidateQueries({ queryKey: ["adjustments"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["raw-materials"] });
-      toast({ title: "O'chirildi" });
+      toast.success("O'chirildi");
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const openCreate = () => { setForm(emptyForm); setSheetOpen(true); };

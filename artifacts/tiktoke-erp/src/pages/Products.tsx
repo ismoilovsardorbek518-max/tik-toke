@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { flushSync } from 'react-dom';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, fmt } from "@/lib/api";
 import { xlProducts } from "@/lib/excel";
@@ -20,7 +22,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Plus, Search, Pencil, Trash2, Box, Download, FlaskConical, X, Check } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Product {
@@ -39,7 +40,6 @@ const emptyForm = { code: "", name: "", unitId: "", sellingPrice: "", weight: ""
 
 export default function Products() {
   const qc = useQueryClient();
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -74,17 +74,17 @@ export default function Products() {
         ? apiFetch(`/products/${editing.id}`, { method: "PUT", body: JSON.stringify(body) })
         : apiFetch("/products", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products"] });
-      setSheetOpen(false);
-      toast({ title: editing ? "Yangilandi" : "Qo'shildi" });
+      flushSync(() => setSheetOpen(false));
+      toast.success(editing ? "Yangilandi" : "Qo'shildi");
+      setTimeout(() => { qc.invalidateQueries({ queryKey: ["products"] }); }, 0);
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/products/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast({ title: "O'chirildi" }); },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("O'chirildi"); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const saveRecipeMutation = useMutation({
@@ -93,10 +93,10 @@ export default function Products() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["recipe", recipeProductId] });
       qc.invalidateQueries({ queryKey: ["forecast"] });
-      toast({ title: "Formula saqlandi" });
+      toast.success("Formula saqlandi");
       setRecipeProductId(null);
     },
-    onError: (e: Error) => toast({ title: "Xato", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const openCreate = () => { setEditing(null); setForm(emptyForm); setSheetOpen(true); };
