@@ -26,11 +26,16 @@ app.use(
   }),
 );
 
-// CORS — faqat bir xil origin yoki Replit dev domain
+// CORS — Replit, onrender.com va localhost
 app.use(cors({
   origin: (origin, cb) => {
-    // Same-origin, server-to-server, yoki Replit preview
-    if (!origin || origin.includes("replit") || origin.includes("localhost") || origin.includes("127.0.0.1")) {
+    if (
+      !origin ||
+      origin.includes("replit") ||
+      origin.includes("onrender.com") ||
+      origin.includes("localhost") ||
+      origin.includes("127.0.0.1")
+    ) {
       cb(null, true);
     } else {
       cb(new Error("CORS: ruxsat etilmagan origin"));
