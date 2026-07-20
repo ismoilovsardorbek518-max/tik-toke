@@ -38,13 +38,13 @@ app.listen(port, (err) => {
     logger.info({ pingUrl }, "Self-ping started (every 2 min)");
   }
 
-  // Neon DB bepul tier: har 4 daqiqada oddiy query — compute uxlamaslik uchun
+  // Neon DB bepul tier: har 2 daqiqada oddiy query — compute uxlamaslik uchun
   setInterval(async () => {
     try {
       await pool.query("SELECT 1");
     } catch {
       // jimgina o'tib ketadi
     }
-  }, 4 * 60 * 1000);
-  logger.info("DB keep-alive started (every 4 min)");
+  }, 2 * 60 * 1000);
+  logger.info("DB keep-alive started (every 2 min)");
 });
