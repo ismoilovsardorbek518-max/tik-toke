@@ -93,7 +93,7 @@ export default function App() {
               <Router />
             </WouterRouter>
           </ErrorBoundary>
-          <Toaster richColors position="top-right" />
+          <Toaster richColors position="bottom-right" />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
